@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <nav>
+        <a href="/home" id="home">home</a>
+        <a href="/about">about</a>
+    </nav>
+
+    <div id="content"></div>
+
+    <script>
+        class Router {
+            constructor(routes) {
+                this.routes = routes ;
+                this.init();
+            }
+            init() {
+                var self = this;
+                window.addEventListener('popstate', function() {
+                    self.route();
+                });
+                this.route();
+            }
+            route() {
+                const path = window.location.pathname;
+                const view = this.routes[path] || this.routes['404'];
+
+                document.querySelector('content').innerHTML = view.render();
+            }
+            navigate(path) {
+                window.history.pushState(null, '', path);
+                this.route();
+            }
+        }
+
+        class HomeView {
+            render() {
+                return `<h1>home`;
+            }
+        }
+
+        class AboutView {
+            render() {
+                return `<h1>about`;
+            }
+        }
+
+        class NotFoundView {
+            render() {
+                return `Not Found`;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const router = new Router({
+                '/home': new HomeView(),
+                '/about': new AboutView(),
+                '404': new NotFoundView()
+            });
+            document.querySelectorAll('a').forEach(
+                function(link) {
+                    link.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        router.navigate(e.target.getAttribute('href'));
+
+                    });
+                });
+        });
+
+        // function activate({target}){
+        //     if (!target.matches('li > a')) return;
+
+        // }
+    </script>
+</body>
+</html>
