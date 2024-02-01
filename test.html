@@ -7,53 +7,46 @@
 </head>
 <body>
     <div>
-        <div style="width: 40px; border: 1px solid black; margin-top: 30px; margin-left: 30px;">
-            <div id="selectDiv">file</div>
-            <div id="selectBox" style="display: none;">
-                <div id="contentDiv" style="border: 1px solid black;">name</div>
-                <div id="contentDiv" style="border: 1px solid black;">size</div>
-                <div id="contentDiv" style="border: 1px solid black;">date</div>
+        <div class="selectBox"style="width: 50px ;border: 1px solid black; margin-top: 30px; margin-left: 30px;">
+            <div class="selectDiv">file</div>
+            <div class="selectOptions" style="display: none;">
+                <div class="Options" style="border: 1px solid black;">name</div>
+                <div class="Options" style="border: 1px solid black;">size</div>
+                <div class="Options" style="border: 1px solid black;">date</div>
             </div>
         </div>
     </div>
 
     <script>
-        const select = document.querySelector('#selectDiv');
-        select.addEventListener('click', function(){
-            select.textContent ='';
-            select.style.height = '20px';
-            const selectBox = document.querySelector('#selectBox');
-            selectBox.style.display = 'block';
+        document.querySelector('.selectBox').addEventListener('click', function(){
+            const optionBox = document.querySelector('.selectOptions');
+            optionBox.style.display = optionBox.style.display === 'none' ? 'block' :'none';
+
+            const selectDiv = document.querySelector('.selectDiv');
+            const newDiv = document.createElement('div')
             
-            const newDiv = document.createElement('div');
-            newDiv.textContent = 'file';
-            const rect = select.getBoundingClientRect();
-            console.log(rect.top, rect.left, rect.bottom, rect.right );
-            document.body.appendChild(newDiv);
-            newDiv.style.position = 'absolute';
-            newDiv.style.top = '18px';
-            newDiv.style.left = '50px';
-            newDiv.style.backgroundColor = 'white';
+            newDiv.textContent = selectDiv.textContent;
             
-            const boxes = document.querySelectorAll('#selectBox #contentDiv');
-            boxes.forEach(function(box) {
-                box.addEventListener('click', function() {
-                    const text = this.textContent;
-                    select.textContent = text;
-                    selectBox.style.display= 'none'
-                })
-                
-                
-            });
+            newDiv.style.transform = `translated3d(35px, 25px, 0)`
+            console.log(newDiv)
+            console.log(newDiv.style.transform)
         });
 
+        document.querySelectorAll('.Options').forEach(function(option){
+            option.addEventListener('click', function(){
+                document.querySelector('.selectDiv').textContent = this.textContent;
+                document.querySelector('.selectOptions').display = 'none'
+            })
+        });
 
-        // const boxes = document.querySelectorAll('#box');
-        //     boxes.forEach(function(box) {
-        //         box.addEventListener('click', function(){
-        //             select.textcontent = this.textcontent
-        //         })
-        //     })
+        document.addEventListener('click', function(event){
+            const selectBox = document.querySelector('.selectBox');
+            const selectOptions = document.querySelector('.selectOptions');
+            if (!selectBox.contains(event.target)) {
+                selectOptions.style.display = 'none';
+            }
+        })
+
     </script>
 </body>
 </html>
