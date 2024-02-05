@@ -82,6 +82,27 @@
 
         // 사용 예: 'formContainer' ID를 가진 <div> 내의 데이터를 서버로 전송
         submitFormData('formContainer');
+
+
+        // Send data 예시 3
+
+        fetch('https://example.com/data')
+          .then(response => {
+            if (!response.ok) {
+              throw new Error('Network response was not ok');
+            }
+            return response.json(); // 응답을 JSON으로 변환
+          })
+          .then(data => {
+            if (data.length === 0 || Object.keys(data).length === 0) { // 배열 또는 객체가 비어 있는 경우 확인
+              console.log('No data returned from the server');
+              // 여기서 데이터가 비어 있을 때의 처리 로직을 구현
+            } else {
+              console.log('Data received:', data);
+              // 데이터 처리 로직
+            }
+          })
+          .catch(error => console.error('Fetch error:', error));
     </script>
 </body>
 </html>
