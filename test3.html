@@ -103,6 +103,78 @@
             }
           })
           .catch(error => console.error('Fetch error:', error));
+
+
+
+    // 파일 보내기 초기화 버전
+        document.getElementById('uploadBtn').addEventListener('click', () => {
+    const fileInput = document.getElementById('fileInput');
+    const files = fileInput.files;
+    const fileList = document.getElementById('fileList').getElementsByTagName('tbody')[0];
+
+    // 파일 최대 개수 제한
+    if (files.length > 2) {
+        alert('You can only upload up to 2 files.');
+        return;
+    }
+
+    // 기존 파일 리스트 초기화
+    fileList.innerHTML = '';
+
+    // 파일 리스트에 파일 추가
+    Array.from(files).forEach((file, index) => {
+        const row = fileList.insertRow();
+        const cell1 = row.insertCell();
+        const cell2 = row.insertCell();
+
+        cell1.textContent = file.name;
+
+        const deleteButton = document.createElement('button');
+        deleteButton.textContent = 'Delete';
+        deleteButton.onclick = function() {
+            // 행 삭제
+            fileList.deleteRow(row.rowIndex - 1);
+            // 파일 input에서 파일 제거
+            fileInput.value = '';
+        };
+        cell2.appendChild(deleteButton);
+    });
+});
+
+document.getElementById('generateBtn').addEventListener('click', () => {
+    const fileInput = document.getElementById('fileInput');
+    const formData = new FormData();
+
+    // 체크된 파일만 formData에 추가
+    Array.from(fileInput.files).forEach((file, index) => {
+        formData.append('file' + index, file);
+    });
+
+    // 서버로 formData 전송
+    fetch('/your-server-endpoint', {
+        method: 'POST',
+        body: formData,
+    })
+    .then(response => response.json())
+    .then(data => console.log(data))
+    .catch(error => console.error('Error:', error));
+});
+
+        // 파일객체 확인
+        // 파일 입력(<input type="file">)에서 파일 선택
+document.getElementById('myFileInput').addEventListener('change', function(event) {
+    const file = event.target.files[0]; // 첫 번째 선택된 파일 가져오기
+
+    // 파일 객체인지 확인
+    if (file instanceof File) {
+        console.log("This is a File object.");
+        console.log("File name:", file.name); // 파일 이름 출력
+    } else {
+        console.log("This is not a File object.");
+    }
+});
+
+        
     </script>
 </body>
 </html>
