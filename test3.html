@@ -174,6 +174,60 @@ document.getElementById('myFileInput').addEventListener('change', function(event
     }
 });
 
+        // 서버 -> 파일 받아오는 로직
+        // 서버로부터 파일 목록을 받아오고 표시하는 함수
+function fetchAndDisplayFiles() {
+  fetch('/get-files') // 서버로부터 파일 목록을 가져오는 API 엔드포인트
+    .then(response => response.json())
+    .then(files => {
+      const fileListElement = document.getElementById('fileList');
+      fileListElement.innerHTML = ''; // 기존 목록 초기화
+
+      files.forEach(file => {
+        const fileElement = document.createElement('div');
+        fileElement.innerHTML = `
+          <span>${file.name}</span>
+          <button onclick="downloadFile('${file.url}', '${file.name}')">Download</button>
+        `;
+        fileListElement.appendChild(fileElement);
+
+        // 파일 다운로드 후 삭제 조건 체크 (예: 10시간 후 자동 삭제)
+        setTimeout(() => {
+          deleteFile(file.name); // 10시간 후 파일 삭제 함수 호출
+        }, 36000000); // 10시간 = 36,000,000ms
+      });
+    });
+}
+
+// 파일 다운로드 함수
+function downloadFile(url, name) {
+  // 파일 다운로드 로직 (예: a 태그를 사용하여 다운로드)
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+
+  // 다운로드 후 파일 삭제
+  deleteFile(name);
+}
+
+// 파일 삭제 함수
+function deleteFile(name) {
+  fetch(`/delete-file?name=${encodeURIComponent(name)}`, { method: 'POST' })
+    .then(response => {
+      if (response.ok) {
+        console.log('File deleted:', name);
+        fetchAndDisplayFiles(); // 파일 목록 새로고침
+      }
+    });
+}
+
+// 페이지 로드 시 파일 목록 로드
+document.addEventListener('DOMContentLoaded', fetchAndDisplayFiles);
+
+
         
     </script>
 </body>
