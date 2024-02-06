@@ -227,7 +227,25 @@ function deleteFile(name) {
 // 페이지 로드 시 파일 목록 로드
 document.addEventListener('DOMContentLoaded', fetchAndDisplayFiles);
 
+// 시리얼라이제이션 데이터 쿼리처리
+        // 예를 들어, 사용자가 입력한 날짜 범위
+let fromDate = '2023-01-01';
+let toDate = '2023-01-31';
 
+// URLSearchParams 객체를 사용하여 쿼리 스트링 생성
+const params = new URLSearchParams({
+  from: fromDate,
+  to: toDate
+});
+
+// 생성된 쿼리 스트링을 포함하여 서버에 요청 보내기
+fetch(`https://example.com/api/data?${params.toString()}`)
+  .then(response => response.json())
+  .then(data => {
+    // 서버로부터 받은 데이터 처리
+    console.log(data);
+  })
+  .catch(error => console.error('Error fetching data:', error));
         
     </script>
 </body>
