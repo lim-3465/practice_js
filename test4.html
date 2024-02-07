@@ -1,0 +1,15 @@
+from werkzeug.utils import secure_filename
+
+@app.route('/', methods=['POST'])
+def upload_file():
+    # 파일이 있는지 확인
+    if 'file' not in request.files:
+        return redirect(request.url)
+    file = request.files['file']
+    # 사용자가 파일을 선택하지 않고, 브라우저가 빈 파일 이름을 제출한 경우
+    if file.filename == '':
+        return redirect(request.url)
+    if file:
+        filename = secure_filename(file.filename)
+        file.save(os.path.join('/path/to/the/uploads', filename))
+        return 'File uploaded successfully'
