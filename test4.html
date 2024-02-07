@@ -1,4 +1,4 @@
-from werkzeug.utils import secure_filename
+lol from werkzeug.utils import secure_filename
 
 @app.route('/', methods=['POST'])
 def upload_file():
@@ -72,4 +72,29 @@ def upload_and_process_file():
     console.error('There has been a problem with your fetch operation:', error);
     // 여기서 사용자에게 에러를 알리는 UI 처리를 할 수 있습니다.
 });
+
+
+
+
+
+function autoDownloadFile(url, filename) {
+  fetch(url)
+    .then(response => response.blob())
+    .then(blob => {
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = filename; // 파일 다운로드에 사용될 이름
+      document.body.appendChild(a);
+      a.click(); // <a> 태그를 프로그래매틱하게 클릭하여 다운로드 실행
+
+      // 자원 정리
+      window.URL.revokeObjectURL(downloadUrl);
+      document.body.removeChild(a);
+    })
+    .catch(e => console.error('Download error:', e));
+}
+
+// 사용 예
+autoDownloadFile('path/to/your/file.pdf', 'downloadedFile.pdf');
     
