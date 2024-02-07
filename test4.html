@@ -58,4 +58,18 @@ def upload_and_process_file():
     window.location = data.downloadUrl; // 파일 다운로드 URL로 리다이렉트
 });
     
+    fetch('/upload', {
+    method: 'POST',
+    body: formData,
+}).then(response => {
+    if (!response.ok) {
+        throw new Error('Network response was not ok');
+    }
+    return response.json();
+}).then(data => {
+    window.location = data.downloadUrl;
+}).catch(error => {
+    console.error('There has been a problem with your fetch operation:', error);
+    // 여기서 사용자에게 에러를 알리는 UI 처리를 할 수 있습니다.
+});
     
