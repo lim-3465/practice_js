@@ -12,4 +12,32 @@ def upload_file():
     if file:
         filename = secure_filename(file.filename)
         file.save(os.path.join('/path/to/the/uploads', filename))
-        return 'File uploaded successfully'
+        return 'File uploaded 
+        
+@app.route('/', methods=['GET', 'POST'])
+def upload_and_process_file():
+    if request.method == 'POST':
+        # 파일 업로드 처리
+        file = request.files['file']
+        if file and file.filename != '':
+            filename = secure_filename(file.filename)
+            input_path = os.path.join('/path/to/uploads', filename)
+            file.save(input_path)
+            
+            # 파일 처리 로직 호출
+            output_path = os.path.join('/path/to/processed', "processed_" + filename)
+            process_file(input_path, output_path)
+            
+            # 처리된 파일 다운로드 페이지로 리다이렉트
+            return redirect(url_for('download_file', filename="processed_" + filename))
+    
+    # 파일 업로드 폼을 보여주는 페이지 반환
+    return '''
+    <!doctype html>
+    <title>Upload new File</title>
+    <h1>Upload new File</h1>
+    <form method=post enctype=multipart/form-data>
+      <input type=file name=file>
+      <input type=submit value=Upload>
+    </form>
+    '''
