@@ -1,0 +1,38 @@
+// apiService.js
+export async function postFormData(url, data) {
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
+        });
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return await response.json();
+    } catch (error) {
+        throw error;
+    }
+}
+
+// main.js
+import { postFormData } from './apiService.js';
+
+document.getElementById('submit-btn').addEventListener('click', async () => {
+    const selectedOption = document.getElementById('input-select').value;
+    const selectedDate = document.getElementById('input-date').value;
+
+    const data = { option: selectedOption, date: selectedDate };
+    const url = 'https://your-server.com/api/submit';
+
+    try {
+        const jsonData = await postFormData(url, data);
+        console.log('Success:', jsonData);
+        // UI 업데이트 로직
+    } catch (error) {
+        console.error('Error:', error);
+        // 오류 처리 로직
+    }
+});
