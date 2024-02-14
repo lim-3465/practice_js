@@ -1,0 +1,31 @@
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+public class HashMapListExample {
+    public static void main(String[] args) {
+        // HashMap 객체들을 저장할 ArrayList 생성
+        List<Map<String, Object>> hashMapList = new ArrayList<>();
+
+        // 예제 데이터 (이 부분은 실제 사용 사례에 따라 달라질 수 있음)
+        String[] names = {"Alice", "Bob", "Charlie"};
+        int[] ages = {25, 30, 35};
+
+        // for문을 사용하여 각 HashMap을 생성하고 리스트에 추가
+        for (int i = 0; i < names.length; i++) {
+            Map<String, Object> personMap = new HashMap<>();
+            personMap.put("name", names[i]);
+            personMap.put("age", ages[i]);
+
+            // 생성된 HashMap을 리스트에 추가
+            hashMapList.add(personMap);
+        }
+
+        // 리스트와 그 내용 출력
+        System.out.println(hashMapList);
+        for (Map<String, Object> person : hashMapList) {
+            System.out.println("Name: " + person.get("name") + ", Age: " + person.get("age"));
+        }
+    }
+}
