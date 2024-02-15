@@ -188,32 +188,45 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface FileInfoRepository extends JpaRepository<FileInfo, Long> {
 }
+
+
+
 스텝 4: 서비스 계층 구현
 파일 정보를 처리하고 데이터베이스에 저장하는 서비스 계층을 구현합니다.
 
-java
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-
 import java.util.List;
 
-@Service
+@Service // 이 클래스를 스프링의 서비스 계층 컴포넌트로 선언
 public class FileInfoService {
 
-    @Autowired
+    @Autowired // 스프링의 의존성 주입 기능을 사용하여 FileInfoRepository 인스턴스 자동 주입
     private FileInfoRepository fileInfoRepository;
 
+    // 모든 FileInfo 엔티티를 데이터베이스에서 조회하는 메소드
     public List<FileInfo> findAll() {
-        return fileInfoRepository.findAll();
+        return fileInfoRepository.findAll(); // JpaRepository의 findAll 메소드를 호출하여 모든 파일 정보 조회
     }
 
+    // 새 FileInfo 엔티티를 데이터베이스에 저장하거나, 기존 엔티티를 업데이트하는 메소드
     public FileInfo save(FileInfo fileInfo) {
-        return fileInfoRepository.save(fileInfo);
+        return fileInfoRepository.save(fileInfo); // JpaRepository의 save 메소드를 호출하여 파일 정보 저장 또는 업데이트
     }
 
-    // 파일 정보 처리 로직 추가 (예: 파일 정보 읽기 및 DB 저장)
+    // 파일 정보를 ID를 기준으로 조회하는 메소드 (추가 예시)
+    public FileInfo findById(Long id) {
+        return fileInfoRepository.findById(id) // JpaRepository의 findById 메소드를 호출하여 ID로 파일 정보 조회
+                .orElseThrow(() -> new RuntimeException("File not found with id " + id)); // 조회된 정보가 없을 경우 예외 발생
+    }
+
+    // 파일 정보를 ID를 기준으로 삭제하는 메소드 (추가 예시)
+    public void deleteById(Long id) {
+        fileInfoRepository.deleteById(id); // JpaRepository의 deleteById 메소드를 호출하여 ID로 파일 정보 삭제
+    }
 }
+
+
 스텝 5: 컨트롤러 계층 수정
 컨트롤러에서 서비스 계층을 호출하여 파일 정보를 처리하고, 웹 페이지에 표시하도록 수정합니다.
 
