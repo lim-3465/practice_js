@@ -1,0 +1,31 @@
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.TemporalAdjusters;
+import java.util.ArrayList;
+import java.util.List;
+
+public class FileNameGenerator {
+
+    public static List<String> generateExpectedFileNames(LocalDate referenceDate, List<DayOfWeek> daysOfWeek, String fileFormat) {
+        List<String> expectedFileNames = new ArrayList<>();
+        
+        for (DayOfWeek dayOfWeek : daysOfWeek) {
+            LocalDate nextCycleDate = referenceDate.with(TemporalAdjusters.nextOrSame(dayOfWeek));
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern(fileFormat);
+            String formattedDate = nextCycleDate.format(formatter);
+            expectedFileNames.add("report-" + formattedDate + ".csv");
+        }
+        
+        return expectedFileNames;
+    }
+    
+    public static void main(String[] args) {
+        LocalDate referenceDate = LocalDate.now(); // 현재 날짜를 참조 날짜로 사용
+        List<DayOfWeek> daysOfWeek = List.of(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY, DayOfWeek.FRIDAY, DayOfWeek.SUNDAY); // 파일이 들어올 요일
+        String fileFormat = "yyyy-MM-dd"; // 파일 날짜 포맷
+        
+        List<String> expectedFileNames = generateExpectedFileNames(referenceDate, daysOfWeek, fileFormat);
+        expectedFileNames.forEach(System.out::println);
+    }
+}
