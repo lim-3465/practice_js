@@ -1,0 +1,31 @@
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+public class DatePatternConverter {
+
+    public static void main(String[] args) {
+        String[] dates = {"20240102", "02-01-2024"};
+        String newPattern = "YYYY-MM-DD";
+        String regex = "(\\d{4})(\\d{2})(\\d{2})|(\\d{2})-(\\d{2})-(\\d{4})";
+        
+        Pattern pattern = Pattern.compile(regex);
+        
+        for (String date : dates) {
+            Matcher matcher = pattern.matcher(date);
+            if (matcher.find()) {
+                String year, month, day;
+                if (matcher.group(1) != null) { // YYYYMMDD format
+                    year = matcher.group(1);
+                    month = matcher.group(2);
+                    day = matcher.group(3);
+                } else { // DD-MM-YYYY format
+                    day = matcher.group(4);
+                    month = matcher.group(5);
+                    year = matcher.group(6);
+                }
+                String reformattedDate = year + "-" + month + "-" + day;
+                System.out.println("Original: " + date + ", Reformatted: " + reformattedDate);
+            }
+        }
+    }
+}
