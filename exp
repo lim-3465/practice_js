@@ -28,4 +28,35 @@ public class FileNameGenerator {
         List<String> expectedFileNames = generateExpectedFileNames(referenceDate, daysOfWeek, fileFormat);
         expectedFileNames.forEach(System.out::println);
     }
+
+
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
+
+public class YearlyFileNamesGenerator {
+
+    public static List<String> generateYearlyFileNames(LocalDate startDate, DayOfWeek dayOfWeek, String fileFormat) {
+        List<String> fileNames = new ArrayList<>();
+        LocalDate endDate = startDate.plusYears(1); // 1년 후의 날짜
+        
+        LocalDate currentDate = startDate;
+        while (currentDate.isBefore(endDate)) {
+            if (currentDate.getDayOfWeek() == dayOfWeek) {
+                fileNames.add("report-" + currentDate.format(DateTimeFormatter.ofPattern(fileFormat)) + ".csv");
+                currentDate = currentDate.plusWeeks(1); // 다음 주로 이동
+            } else {
+                currentDate = currentDate.plusDays(1); // 다음 날로 이동
+            }
+        }
+        
+        return fileNames;
+    }
+
+    public static void main(String[] args) {
+        LocalDate startDate = LocalDate.of(2023, 1, 1); // 시작 날짜 설정
+        List<String> fileNames = generateYearlyFileNames(startDate, DayOfWeek.MONDAY, "yyyy-MM-dd");
+        fileNames.forEach(System.out::println); // 생성된 파일 이름 출력
+    }
 }
