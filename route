@@ -29,6 +29,20 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addViewController("/{x:[\\w\\-]+}")
                 .setViewName("forward:/index.html");
         registry.addViewController("/{x:^(?!api$).*$}/**/{y:[\\w\\-]+}")
-                .setViewName("forward:/index.html");
+                .setViewName("forward:/index.import org.springframework.context.annotation.Configuration;
+
+
+
+import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+@Configuration
+public class WebMvcConfig implements WebMvcConfigurer {
+
+    @Override
+    public void addViewControllers(ViewControllerRegistry registry) {
+        // SPA의 라우트 처리를 위해 모든 경로를 'index.html'로 매핑
+        registry.addViewController("/**").setViewName("forward:/index.html");
     }
 }
+
