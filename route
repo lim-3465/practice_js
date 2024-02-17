@@ -1,48 +1,31 @@
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
-import org.springframework.web.servlet.resource.PathResourceResolver;
 
-@Configuration
-public class WebConfig implements WebMvcConfigurer {
+@SpringBootApplication
+public class SingleFileApplication {
 
-    @Override
-    public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        registry.addResourceHandler("/**")
-                .addResourceLocations("classpath:/static/")
-                .resourceChain(true)
-                .addResolver(new PathResourceResolver() {
-                    @Override
-                    protected org.springframework.core.io.Resource getResource(String resourcePath,
-                            ClassPathResource location) throws IOException {
-                        org.springframework.core.io.Resource requestedResource = location.createRelative(resourcePath);
-                        return requestedResource.exists() && requestedResource.isReadable() ? requestedResource
-                                : new ClassPathResource("/static/index.html");
-                    }
-                });
+    public static void main(String[] args) {
+        SpringApplication.run(SingleFileApplication.class, args);
     }
 
-    @Override
-    public void addViewControllers(ViewControllerRegistry registry) {
-        registry.addViewController("/{x:[\\w\\-]+}")
-                .setViewName("forward:/index.html");
-        registry.addViewController("/{x:^(?!api$).*$}/**/{y:[\\w\\-]+}")
-                .setViewName("forward:/index.import org.springframework.context.annotation.Configuration;
+    @Configuration
+    public static class WebConfig implements WebMvcConfigurer {
+        @Override
+        public void addViewControllers(ViewControllerRegistry registry) {
+            registry.addViewController("/**").setViewName("forward:/index.html");
+        }
+    }
 
-
-
-import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
-
-@Configuration
-public class WebMvcConfig implements WebMvcConfigurer {
-
-    @Override
-    public void addViewControllers(ViewControllerRegistry registry) {
-        // SPA의 라우트 처리를 위해 모든 경로를 'index.html'로 매핑
-        registry.addViewController("/**").setViewName("forward:/index.html");
+    @RestController
+    public static class ApiController {
+        @GetMapping("/api/hello")
+        public String hello() {
+            return "Hello, API";
+        }
     }
 }
-
