@@ -98,3 +98,44 @@ function autoDownloadFile(url, filename) {
 // 사용 예
 autoDownloadFile('path/to/your/file.pdf', 'downloadedFile.pdf');
     
+    
+    
+    
+    
+    
+document.addEventListener('DOMContentLoaded', () => {
+    const jsonData = [
+        { "name": "John", "age": 30, "city": "New York" },
+        { "name": "Jane", "age": 25, "city": "Paris" },
+        { "name": "Tom", "age": 28, "city": "London" }
+        // JSON 객체가 더 많을 수 있습니다.
+    ];
+
+    generateTableFromJSON(jsonData);
+});
+
+function generateTableFromJSON(data) {
+    const table = document.getElementById('jsonTable');
+    const thead = table.querySelector('thead tr');
+    const tbody = table.querySelector('tbody');
+
+    // 테이블 헤더 생성
+    if (data.length > 0) {
+        Object.keys(data[0]).forEach(key => {
+            let th = document.createElement('th');
+            th.textContent = key;
+            thead.appendChild(th);
+        });
+    }
+
+    // 테이블 행 생성
+    data.forEach(item => {
+        let tr = document.createElement('tr');
+        Object.keys(item).forEach(key => {
+            let td = document.createElement('td');
+            td.textContent = item[key];
+            tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+    });
+}
