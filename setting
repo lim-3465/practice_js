@@ -1,0 +1,107 @@
+dependencies {
+    implementation 'com.h2database:h2:1.4.200'
+    // 기타 필요한 스프링 부트 및 프로젝트 의존성
+}
+
+
+
+# H2 데이터베이스 연결 설정
+spring.datasource.url=jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;MODE=MySQL
+spring.datasource.driverClassName=org.h2.Driver
+spring.datasource.username=sa
+spring.datasource.password=
+
+# H2 콘솔 활성화
+spring.h2.console.enabled=true
+spring.h2.console.path=/h2-console
+
+
+
+
+서비스레이어 디티오 사용 예시
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+@Service
+public class PersonService {
+    @Autowired
+    private PersonRepository personRepository;
+
+    public void addPersonFromDto(PersonDto personDto) {
+        Person person = new Person();
+        person.setName(personDto.getName());
+        person.setAge(personDto.getAge());
+        personRepository.save(person);
+    }
+}
+
+ㅇㅔㄴ티티 도메인 정의
+
+package com.yourcompany.yourproject.domain;
+
+import javax.persistence.Entity;
+import javax.persistence.GeneratedValue;
+import javax.persistence.GenerationType;
+import javax.persistence.Id;
+
+@Entity
+public class Person {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    private String name;
+    private int age;
+
+    // 생성자, 게터, 세터
+    public Person() {}
+
+    public Person(String name, int age) {
+        this.name = name;
+        this.age = age;
+    }
+
+    // 게터와 세터 메소드 생략
+}
+
+리포지토리 인터페이스 생성
+
+package com.yourcompany.yourproject.repository;
+
+import com.yourcompany.yourproject.domain.Person;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface PersonRepository extends JpaRepository<Person, Long> {
+}
+
+
+
+
+서비스계층 구현
+
+package com.yourcompany.yourproject.service;
+
+import com.yourcompany.yourproject.domain.Person;
+import com.yourcompany.yourproject.dto.PersonDto;
+import com.yourcompany.yourproject.repository.PersonRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+@Service
+public class PersonService {
+    private final PersonRepository personRepository;
+
+    @Autowired
+    public PersonService(PersonRepository personRepository) {
+        this.personRepository = personRepository;
+    }
+
+    public void addPerson(PersonDto personDto) {
+        Person person = new Person(personDto.getName(), personDto.getAge());
+        personRepository.save(person);
+    }
+}
+
+
+
+
