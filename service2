@@ -47,3 +47,210 @@ public class FileProcessingService {
         fileRecordRepository.save(record); // 데이터베이스에 저장
     }
 }
+
+
+-------------------------------------------------------------------------------------------------
+import org.springframework.stereotype.Service;
+
+import javax.annotation.PostConstruct;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
+
+@Service
+public class FileProcessingService {
+
+    private List<FileProcessingTask> tasks = new ArrayList<>();
+
+    @PostConstruct
+    public void init() {
+        // 파일 경로와 관련 정보를 기반으로 tasks 리스트 초기화
+        tasks.add(new FileProcessingTask(Paths.get("/path/to/folder1/file1.txt"), "App1", "TXT", "Type1"));
+        tasks.add(new FileProcessingTask(Paths.get("/path/to/folder2/file2.csv"), "App2", "CSV", "Type2"));
+        // 추가로 더 많은 파일 처리 작업을 리스트에 추가
+
+        processMultipleFileTasks(tasks);
+    }
+
+    public void processMultipleFileTasks(List<FileProcessingTask> tasks) {
+        for (FileProcessingTask task : tasks) {
+            // 각 task 처리 로직
+        }
+    }
+}
+
+
+---------------------------------------------------------
+
+public void processFiles(Path directoryPath) {
+    try (Stream<Path> paths = Files.walk(directoryPath)) {
+        paths.filter(Files::isRegularFile).forEach(this::processFile);
+    } catch (IOException e) {
+        e.printStackTrace();
+    }
+}
+
+private void processFile(Path filePath) {
+    // 파일 메타정보 추출
+    String fileName = filePath.getFileName().toString();
+    long fileSize = Files.size(filePath);
+    LocalDate creationDate = // 파일 생성 날짜 추출 로직
+
+    // 파일 컨텐츠 정보 추출 (예: CSV 파일 처리)
+    try (CSVReader reader = new CSVReader(new FileReader(filePath.toFile()))) {
+        String[] nextLine;
+        while ((nextLine = reader.readNext()) != null) {
+            String userName = nextLine[0];
+            String email = nextLine[1];
+            // 데이터베이스에 저장
+            saveFileData(fileName, fileSize, creationDate, userName, email);
+        }
+    } catch (Exception e) {
+        e.printStackTrace();
+    }
+}
+
+@Transactional
+public void saveFileData(String fileName, long fileSize, LocalDate creationDate, String userName, String email) {
+    // FileMetaInfo와 FileContent 엔티티 생성 및 레포지토리를 통한 저장 로직
+}
+
+
+
+
+
+
+
+
+
+
+
+API 설정 --------------ㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡㅡ
+
+1. 컨트롤러(Controller) 작성
+먼저, 클라이언트의 요청을 처리할 컨트롤러를 작성합니다. @RestController 어노테이션을 사용하면, 반환 값이 자동으로 JSON 형태로 변환되어 응답 본문에 포함됩니다.
+
+java
+Copy code
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import java.util.List;
+
+@RestController
+public class FileMetaInfoController {
+
+    private final FileMetaInfoService fileMetaInfoService;
+
+    @Autowired
+    public FileMetaInfoController(FileMetaInfoService fileMetaInfoService) {
+        this.fileMetaInfoService = fileMetaInfoService;
+    }
+
+    @GetMapping("/fileMetaInfos")
+    public List<FileMetaInfo> getFileMetaInfos(@RequestParam(name = "fileName", required = false) String fileName) {
+        if (fileName != null) {
+            return fileMetaInfoService.findByFileName(fileName);
+        } else {
+            return fileMetaInfoService.findAll();
+        }
+    }
+}
+2. 서비스(Service) 계층 구현
+서비스 계층에서는 비즈니스 로직을 구현합니다. 여기서는 파일 이름으로 FileMetaInfo를 조회하는 메소드와 모든 FileMetaInfo를 조회하는 메소드를 포함합니다.
+
+java
+Copy code
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import java.util.List;
+
+@Service
+public class FileMetaInfoService {
+
+    private final FileMetaInfoRepository fileMetaInfoRepository;
+
+    @Autowired
+    public FileMetaInfoService(FileMetaInfoRepository fileMetaInfoRepository) {
+        this.fileMetaInfoRepository = fileMetaInfoRepository;
+    }
+
+    public List<FileMetaInfo> findByFileName(String fileName) {
+        return fileMetaInfoRepository.findByFileName(fileName);
+    }
+
+    public List<FileMetaInfo> findAll() {
+        return fileMetaInfoRepository.findAll();
+    }
+}
+3. 레포지토리(Repository) 확장
+FileMetaInfoRepository 인터페이스에서 필요한 쿼리 메소드를 정의합니다. Spring Data JPA의 메소드 이름 규칙을 사용하면, 복잡한 쿼리도 간단히 구현할 수 있습니다.
+
+java
+Copy code
+import org.springframework.data.jpa.repository.JpaRepository;
+import java.util.List;
+
+public interface FileMetaInfoRepository extends JpaRepository<FileMetaInfo, Long> {
+    List<FileMetaInfo> findByFileName(String fileName);
+}
+4. 애플리케이션 실행 및 테스트
+애플리케이션을 실행한 후, 웹 브라우저나 API 테스팅 도구(예: Postman)를 사용하여 다음과 같은 URL로 요청을 보낼 수 있습니다.
+
+bash
+Copy code
+http://localhost:8080/fileMetaInfos?fileName=testfile.txt
+이 요청은 fileName 쿼리 파라미터를 포함하고 있으며, 서버는 이 파라미터를 사용하여 해당 파일 이름의 메타정보를 조회한 후 결과를 JSON 형태로 반환합니다.
+
+이 과정을 통해 Spring Boot 애플리케이션에서 웹에서 쿼리 파라미터를 사용하여 데이터를 조회하고, 그 결과를 클라이언트에게 JSON 형식으로 전달하는 API를 구현할 수 있습니다.
+
+User
+쿼리에 필요한 서비스 계층 코드도 다 짜줘야 되는거야?
+GPT
+네, 쿼리에 필요한 데이터를 처리하고 반환하기 위해서는 서비스 계층에서 해당 쿼리를 수행하는 메서드를 구현해야 합니다. 서비스 계층은 컨트롤러(Controller)와 데이터 접근 계층(Repository) 사이의 비즈니스 로직을 담당하는 중간 계층으로, 데이터 처리 및 비즈니스 규칙을 캡슐화합니다.
+
+서비스 계층에서 메서드를 구현할 때는 다음 사항을 고려해야 합니다:
+
+데이터 검증: 요청 데이터의 유효성을 검증합니다.
+비즈니스 로직 수행: 비즈니스 규칙에 따라 필요한 데이터 처리를 수행합니다.
+데이터 접근 및 수정: 레포지토리(Repository)를 통해 데이터베이스에 접근하거나 데이터를 수정합니다.
+트랜잭션 관리: 필요한 경우, 데이터 변경을 트랜잭션으로 관리하여 데이터의 일관성을 보장합니다.
+아래는 쿼리에 필요한 서비스 계층 코드 예시입니다. 이 예시에서는 파일 메타정보(FileMetaInfo)를 조회하는 기능을 구현합니다.
+
+서비스 계층 예시
+java
+Copy code
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import java.util.List;
+
+@Service
+public class FileMetaInfoService {
+
+    private final FileMetaInfoRepository fileMetaInfoRepository;
+
+    @Autowired
+    public FileMetaInfoService(FileMetaInfoRepository fileMetaInfoRepository) {
+        this.fileMetaInfoRepository = fileMetaInfoRepository;
+    }
+
+    // 파일 이름으로 파일 메타정보 조회
+    @Transactional(readOnly = true)
+    public List<FileMetaInfo> findByFileName(String fileName) {
+        // 데이터 검증 및 비즈니스 로직 (예시에서는 생략)
+        return fileMetaInfoRepository.findByFileName(fileName);
+    }
+
+    // 모든 파일 메타정보 조회
+    @Transactional(readOnly = true)
+    public List<FileMetaInfo> findAll() {
+        return fileMetaInfoRepository.findAll();
+    }
+}
+설명
+@Service: 클래스를 서비스 계층의 빈으로 등록합니다.
+@Autowired: 생성자 기반의 의존성 주입을 사용하여 FileMetaInfoRepository 인스턴스를 주입받습니다.
+@Transactional(readOnly = true): 메서드가 데이터를 읽기만 하는 트랜잭션에서 수행됨을 나타냅니다. readOnly = true 옵션은 성능 최적화에 도움을 줄 수 있습니다.
+서비스 계층에서 구현된 메서드는 컨트롤러에서 호출되어, 클라이언트의 요청에 따라 데이터베이스에서 데이터를 조회하고 결과를 반환하는데 사용됩니다. 서비스 계층을 통해 컨트롤러와 레포지토리 사이의 비즈니스 로직을 적절히 분리하며, 애플리케이션의 유지 보수성과 확장성을 향상시킬 수 있습니다.
