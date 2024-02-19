@@ -1,0 +1,136 @@
+import com.opencsv.CSVReader;
+import java.io.FileReader;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+@Service
+public class FileProcessingService {
+
+    @Autowired
+    private FileRecordRepository fileRecordRepository;
+
+    public void processCsvFile(Path filePath) {
+        try {
+            // 파일 메타정보 처리
+            String fileName = filePath.getFileName().toString();
+            long fileSize = Files.size(filePath);
+                 // 파일 처리 로직 (파일 크기, 라인 수 계산 등)
+            boolean parsedSuccessfully = false;
+
+            // CSV 파일을 열어서 컨텐츠 정보 추출
+            try (CSVReader reader = new CSVReader(new FileReader(filePath.toFile()))) {
+                String[] nextLine;
+                while ((nextLine = reader.readNext()) != null) {
+                    String userName = nextLine[0]; // 첫 번째 컬럼이 사용자 이름이라고 가정
+                    String email = nextLine[1]; // 두 번째 컬럼이 이메일이라고 가정
+
+                    // 파일 메타정보 및 컨텐츠 정보를 포함하는 FileRecord 객체 생성 및 저장
+                    FileRecord record = new FileRecord(fileName, fileSize, userName, email);
+                    fileRecordRepository.save(record);
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+
+-----------------------------------------------------------------------------------------
+레포지토리 인터페이스
+FileMetaInfoRepository
+
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface FileMetaInfoRepository extends JpaRepository<FileMetaInfo, Long> {
+}
+
+
+FileContentRepository
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface FileContentRepository extends JpaRepository<FileContent, Long> {
+}
+--------------------------------------------------------------------------------------
+
+엔티티예
+
+일대다(1:N) 관계 설정 방법
+아래의 예시에서는 FileMetaInfo 엔티티와 FileContent 엔티티 사이에 일대다 관계를 설정하는 방법을 보여줍니다.
+
+FileMetaInfo 엔티티 수정
+FileMetaInfo 엔티티는 여러 개의 FileContent 엔티티를 가질 수 있습니다. @OneToMany 어노테이션을 사용하여 이 관계를 설정합니다.
+
+import lombok.Getter;
+import lombok.Setter;
+import lombok.NoArgsConstructor;
+import javax.persistence.*;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+
+@Entity
+@Getter
+@Setter
+@NoArgsConstructor
+public class FileMetaInfo {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String fileName;
+    private LocalDate creationDate;
+
+    @OneToMany(mappedBy = "fileMetaInfo", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<FileContent> fileContents = new ArrayList<>();
+
+    public FileMetaInfo(String fileName, LocalDate creationDate) {
+        this.fileName = fileName;
+        this.creationDate = creationDate;
+    }
+
+    // 파일 컨텐츠 추가 메소드
+    public void addFileContent(FileContent fileContent) {
+        fileContents.add(fileContent);
+        fileContent.setFileMetaInfo(this);
+    }
+FileContent 엔티티 수정
+FileContent 엔티티는 @ManyToOne 어노테이션을 사용하여 FileMetaInfo 엔티티와의 관계를 정의합니다. 이는 FileContent가 하나의 FileMetaInfo에 속함을 나타냅니다.
+
+
+import lombok.Getter;
+import lombok.Setter;
+import lombok.NoArgsConstructor;
+import javax.persistence.*;
+import java.time.LocalDate;
+
+@Entity
+@Getter
+@Setter
+@NoArgsConstructor
+public class FileContent {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String userName;
+    private String userId;
+    private LocalDate date;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "fileMetaInfo_id")
+    private FileMetaInfo fileMetaInfo;
+
+    public FileContent(String userName, String userId, LocalDate date) {
+        this.userName = userName;
+        this.userId = userId;
+        this.date = date;
+    }
+}
+설명
+일대다 관계 설정: FileMetaInfo와 FileContent 사이에 일대다 관계를 설정함으로써, 하나의 파일 메타정보에 여러 개의 컨텐츠 정보가 연결될 수 있도록 합니다.
+양방향 관계: 이 예시에서는 양방향 관계를 설정하여 FileMetaInfo 엔티티에서 FileContent 엔티티들을 참조할 수 있고, FileContent 엔티티에서도 자신이 속한 FileMetaInfo 엔티티를 참조할 수 있습니다.
+편의 메소드(addFileContent): FileMetaInfo 엔티티에 FileContent 엔티티를 추가할 때 사용할 수 있는 편의 메소드를 제공합니다. 이 메소드는 양방향 관계를 자동으로 설정해 줍니다.
