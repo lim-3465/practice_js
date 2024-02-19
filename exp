@@ -60,3 +60,41 @@ public class YearlyFileNamesGenerator {
         fileNames.forEach(System.out::println); // 생성된 파일 이름 출력
     }
 }
+
+
+
+import java.time.LocalDate;
+import java.time.DayOfWeek;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+
+public class SpecificDaysDatesFinder {
+    public static void main(String[] args) {
+        LocalDate startDate = LocalDate.of(2024, 1, 1); // 시작 날짜
+        LocalDate endDate = LocalDate.of(2024, 2, 28); // 종료 날짜
+        Set<DayOfWeek> targetDaysOfWeek = Set.of(DayOfWeek.MONDAY, DayOfWeek.FRIDAY); // 찾고자 하는 요일들
+        
+        List<LocalDate> matchingDates = findDatesByDaysOfWeek(startDate, endDate, targetDaysOfWeek);
+        
+        System.out.println("Matching dates:");
+        for (LocalDate date : matchingDates) {
+            System.out.println(date);
+        }
+    }
+
+    public static List<LocalDate> findDatesByDaysOfWeek(LocalDate startDate, LocalDate endDate, Set<DayOfWeek> targetDaysOfWeek) {
+        List<LocalDate> dates = new ArrayList<>();
+        LocalDate currentDate = startDate;
+        
+        while (!currentDate.isAfter(endDate)) {
+            if (targetDaysOfWeek.contains(currentDate.getDayOfWeek())) {
+                dates.add(currentDate);
+            }
+            currentDate = currentDate.plusDays(1);
+        }
+        
+        return dates;
+    }
+}
+
