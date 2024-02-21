@@ -1,0 +1,27 @@
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+
+public class SecurityConfig extends WebSecurityConfigurerAdapter {
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http
+            .authorizeRequests()
+                .antMatchers("/h2-console/**").permitAll()  // H2 콘솔 접근 허용
+                .anyRequest().authenticated()
+                .and()
+            .csrf()
+                .ignoringAntMatchers("/h2-console/**")  // CSRF 보호 해제
+                .and()
+            .headers()
+                .frameOptions().disable();  // X-Frame-Options 해제
+    }
+}
+
+
+
+spring.datasource.url=jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+spring.datasource.driverClassName=org.h2.Driver
+spring.datasource.username=sa
+spring.datasource.password=
+spring.jpa.database-platform=org.hibernate.dialect.H2Dialect
