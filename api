@@ -1,0 +1,103 @@
+dependencies {
+    // Apache HttpClient
+    implementation 'org.apache.httpcomponents:httpclient:4.5.13'
+    
+    // Jackson 라이브러리
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.12.3'
+    
+    // OAuth2 관련 의존성은 이 예제에서는 직접 사용하지 않지만, 실제 프로젝트에선 필요할 수 있습니다.
+}
+
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.http.HttpHeaders;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
+
+import java.util.HashMap;
+import java.util.Map;
+
+public class OAuth2Example {
+
+    private static final String TOKEN_URL = "https://example.com/oauth/token";
+    private static final String RESOURCE_URL = "https://example.com/api/resource";
+    private static final String CLIENT_ID = "your-client-id";
+    private static final String CLIENT_SECRET = "your-client-secret";
+
+    public static void main(String[] args) {
+        try {
+            String accessToken = getAccessToken();
+            if (accessToken != null) {
+                accessProtectedResource(accessToken);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static String getAccessToken() throws Exception {
+        try (CloseableHttpClient client = HttpClients.createDefault()) {
+            HttpPost httpPost = new HttpPost(TOKEN_URL);
+
+            Map<String, String> params = new HashMap<>();
+            params.put("grant_type", "client_credentials");
+            params.put("client_id", CLIENT_ID);
+            params.put("client_secret", CLIENT_SECRET);
+
+            ObjectMapper objectMapper = new ObjectMapper();
+            String json = objectMapper.writeValueAsString(params);
+
+            httpPost.setEntity(new StringEntity(json));
+            httpPost.setHeader(HttpHeaders.CONTENT_TYPE, "application/json");
+
+            var response = client.execute(httpPost);
+            String responseBody = EntityUtils.toString(response.getEntity());
+
+            Map<String, Object> responseMap = objectMapper.readValue(responseBody, Map.class);
+            return (String) responseMap.get("access_token");
+        }
+    }
+
+    private static void accessProtectedResource(String accessToken) throws Exception {
+        try (CloseableHttpClient client = HttpClients.createDefault()) {
+            HttpGet httpGet = new HttpGet(RESOURCE_URL);
+            httpGet.setHeader(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
+
+            var response = client.execute(httpGet);
+            String responseBody = EntityUtils.toString(response.getEntity());
+
+            System.out.println("Protected Resource Response: " + responseBody);
+        }
+    }
+}
+
+
+
+
+oauth.clientId=yourClientId
+oauth.clientSecret=yourClientSecret
+
+import java.io.InputStream;
+import java.util.Properties;
+
+public class PropertiesFileExample {
+    public static void main(String[] args) {
+        Properties prop = new Properties();
+        try (InputStream input = PropertiesFileExample.class.getClassLoader().getResourceAsStream("config.properties")) {
+            prop.load(input);
+            
+            String clientId = prop.getProperty("oauth.clientId");
+            String clientSecret = prop.getProperty("oauth.clientSecret");
+            
+            System.out.println("Client ID: " + clientId);
+            System.out.println("Client Secret: " + clientSecret);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+
