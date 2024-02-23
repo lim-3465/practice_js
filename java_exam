@@ -251,3 +251,19 @@ public class FileInfoController {
 
     // 파일 정보를 DB에 저장하는 엔드포인트 추가 가능
 }
+
+
+@Service
+public class MyService {
+    private final MyRepository repository;
+
+    @Autowired
+    public MyService(MyRepository repository) {
+        this.repository = repository;
+    }
+
+    // 사용 예시
+    public void someMethod() {
+        repository.save(new MyEntity());
+    }
+}
