@@ -101,3 +101,83 @@ public class PropertiesFileExample {
     }
 }
 
+
+
+데이터베이스에서 사용자 ID(userSid)를 조회한 후 중복을 제거하고, 각 유니크한 userSid에 대해 외부 API를 호출하여 유저 정보를 가져오는 프로세스는 여러 단계로 구성됩니다. 아래에 이 과정을 구현하는 방법을 단계별로 설명드립니다.
+
+1. 사용자 ID 조회 및 중복 제거
+먼저, 데이터베이스에서 사용자 ID를 조회하고, Java의 Set 컬렉션을 사용하여 중복을 제거합니다.
+
+UserRepository 인터페이스
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import java.util.List;
+
+public interface UserRepository extends JpaRepository<User, Long> {
+    @Query("SELECT u.userSid FROM User u")
+    List<String> findAllUserSids();
+}
+
+
+
+2. 외부 API 호출
+중복이 제거된 각 userSid에 대해 외부 API를 호출하여 유저 정보를 가져옵니다. 여기서는 RestTemplate을 사용한 예시를 보여줍니다.
+
+
+
+UserService 클래스
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+import java.util.HashSet;
+import java.util.Set;
+
+@Service
+public class UserService {
+
+    private final UserRepository userRepository;
+    private final RestTemplate restTemplate;
+
+    @Autowired
+    public UserService(UserRepository userRepository, RestTemplate restTemplate) {
+        this.userRepository = userRepository;
+        this.restTemplate = restTemplate;
+    }
+
+    public void fetchAndProcessUserInfos() {
+        List<String> userSids = userRepository.findAllUserSids();
+        Set<String> uniqueUserSids = new HashSet<>(userSids); // 중복 제거
+
+        uniqueUserSids.forEach(userSid -> {
+            String userInfo = fetchUserInfo(userSid); // API 호출
+            // userInfo를 처리하는 로직 (예: 데이터베이스 저장)
+        });
+    }
+
+    private String fetchUserInfo(String userSid) {
+        String url = "https://example.com/api/users/" + userSid;
+        return restTemplate.getForObject(url, String.class);
+    }
+}
+
+
+
+3. RestTemplate 빈 설정
+RestTemplate 인스턴스를 Spring 컨텍스트에 빈으로 등록합니다. @Bean 어노테이션을 사용하여 AppConfig 클래스에 정의할 수 있습니다.
+
+
+AppConfig 클래스
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.client.RestTemplate;
+
+@Configuration
+public class AppConfig {
+    @Bean
+    public RestTemplate restTemplate() {
+        return new RestTemplate();
+    }
+}
+이 과정을 통해 데이터베이스에서 유저 ID를 조회하고 중복을 제거한 후, 각 유니크한 유저 ID에 대해 외부 API를 호출하여 유저 정보를 가져올 수 있습니다. 외부 API로부터 받은 유저 정보는 추가적으로 처리할 수 있으며, 예를 들어 다른 데이터베이스 테이블에 저장할 수도 있습니다.
