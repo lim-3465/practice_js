@@ -168,6 +168,10 @@ public class UserService {
 RestTemplate 인스턴스를 Spring 컨텍스트에 빈으로 등록합니다. @Bean 어노테이션을 사용하여 AppConfig 클래스에 정의할 수 있습니다.
 
 
+
+
+
+
 AppConfig 클래스
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -181,3 +185,37 @@ public class AppConfig {
     }
 }
 이 과정을 통해 데이터베이스에서 유저 ID를 조회하고 중복을 제거한 후, 각 유니크한 유저 ID에 대해 외부 API를 호출하여 유저 정보를 가져올 수 있습니다. 외부 API로부터 받은 유저 정보는 추가적으로 처리할 수 있으며, 예를 들어 다른 데이터베이스 테이블에 저장할 수도 있습니다.
+
+
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+import java.lang.reflect.Type;
+import java.util.List;
+
+@Service
+public class UserService {
+
+    private final UserRepository userRepository;
+    private final RestTemplate restTemplate;
+    private final Gson gson;
+
+    @Autowired
+    public UserService(UserRepository userRepository, RestTemplate restTemplate, Gson gson) {
+        this.userRepository = userRepository;
+        this.restTemplate = restTemplate;
+        this.gson = gson;
+    }
+
+    public void fetchAndSaveUsers() {
+        String url = "https://example.com/api/users";
+        String jsonResponse = restTemplate.getForObject(url, String.class);
+
+        Type listType = new TypeToken<List<User>>(){}.getType();
+        List<User> userList = gson.fromJson(jsonResponse, listType);
+
+        userRepository.saveAll(userList);
+    }
+}
