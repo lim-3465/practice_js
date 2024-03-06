@@ -73,3 +73,44 @@ function MyPivotTable() {
         />
     );
 }
+
+
+
+
+import React, { useState } from 'react';
+import PivotTableUI from 'react-pivottable/PivotTableUI';
+import 'react-pivottable/pivottable.css';
+
+function MyPivotTable() {
+    const [pivotState, setPivotState] = useState({
+        data: [
+            {country: 'USA', year: '2012', sport: 'Swimming'},
+            {country: 'USA', year: '2012', sport: 'Athletics'},
+            {country: 'USA', year: '2016', sport: 'Swimming'},
+            // 추가 데이터...
+        ],
+        rows: ['country', 'year'], // 로우 그룹화 설정
+        cols: ['sport'], // 컬럼 그룹화 설정
+        aggregatorName: 'Count', // 집계 함수로 'Count' 사용
+        vals: [], // 'Count' 집계는 특정 필드에 대한 값을 계산하지 않으므로 비워둠
+    });
+
+    return (
+        <PivotTableUI
+            data={pivotState.data}
+            onChange={s => setPivotState(s)}
+            {...pivotState}
+        />
+    );
+}
+
+
+
+
+
+
+
+
+
+
+
