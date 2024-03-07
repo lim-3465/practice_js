@@ -1,0 +1,28 @@
+import requests
+import sqlite3
+import json
+
+# API로부터 데이터를 요청하고 JSON으로 받아옵니다.
+response = requests.get("여기에_API_주소_입력")
+data = response.json()
+
+# SQLite 데이터베이스에 연결하거나, 없으면 새로 생성합니다.
+conn = sqlite3.connect('example.db')
+c = conn.cursor()
+
+# 데이터베이스 테이블을 생성합니다(이미 존재하지 않는 경우).
+# 이 예시에서는 'data' 테이블에 'id'와 'value'라는 두 개의 필드를 생성합니다.
+c.execute('''CREATE TABLE IF NOT EXISTS data (id INTEGER PRIMARY KEY, value TEXT)''')
+
+# JSON 데이터에서 정보를 추출하여 데이터베이스에 삽입합니다.
+# 이 예시는 JSON 객체의 리스트를 예상하며, 각 객체에 'id'와 'value' 필드가 있다고 가정합니다.
+for item in data:
+    id = item['id']
+    value = json.dumps(item['value'])  # 객체나 배열 등을 문자열로 변환
+    c.execute("INSERT INTO data (id, value) VALUES (?, ?)", (id, value))
+
+# 변경사항을 데이터베이스에 커밋합니다.
+conn.commit()
+
+# 데이터베이스 연결을 종료합니다.
+conn.close()
