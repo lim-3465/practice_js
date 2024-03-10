@@ -26,3 +26,48 @@ conn.commit()
 
 # 데이터베이스 연결을 종료합니다.
 conn.close()
+
+
+
+
+
+
+
+import requests
+import sqlite3
+import json
+
+# API 호출
+url = 'YOUR_API_ENDPOINT'
+response = requests.get(url)
+data = response.json()  # 응답을 JSON으로 변환
+
+# SQLite 데이터베이스 연결 (없으면 새로 생성)
+conn = sqlite3.connect('example.db')
+c = conn.cursor()
+
+# 데이터베이스 테이블 생성
+# 예를 들어, data = {"name": "John", "age": 30}이라고 가정
+# 테이블 이름은 'users'로 설정
+create_table_query = """
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    {columns}
+)
+""".format(columns=", ".join([f"{key} TEXT" for key in data.keys()]))
+c.execute(create_table_query)
+
+# JSON 데이터 삽입
+insert_query = f"""
+INSERT INTO users ({', '.join(data.keys())}) 
+VALUES ({', '.join(['?' for _ in data.values()])})
+"""
+c.execute(insert_query, list(data.values()))
+
+# 변경사항 커밋 및 연결 종료
+conn.commit()
+conn.close()
+
+
+
+
