@@ -114,3 +114,103 @@ function MyPivotTable() {
 
 
 
+
+import React from 'react';
+
+function MergedCellsTable({ data }) {
+  // 데이터 가공 함수 (여기서는 단순화를 위해 생략)
+
+  return (
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Age</th>
+          <th>City</th>
+        </tr>
+      </thead>
+      <tbody>
+        {data.map((item, index, array) => {
+          // 이전 항목과 이름이 같은 경우 렌더링하지 않음
+          if (index > 0 && item.name === array[index - 1].name) {
+            return null;
+          }
+          // 이름이 같은 항목의 개수를 계산
+          const sameNameCount = array.filter(i => i.name === item.name).length;
+
+          return (
+            <tr key={index}>
+              {sameNameCount > 1 ? (
+                <td rowSpan={sameNameCount}>{item.name}</td>
+              ) : (
+                <td>{item.name}</td>
+              )}
+              <td>{item.age}</td>
+              <td>{item.city}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+
+
+
+
+
+
+
+import React, { useState } from 'react';
+
+function DynamicTable() {
+  const [rows, setRows] = useState([
+    { id: 1, name: 'John Doe', age: 30 },
+    { id: 2, name: 'Jane Doe', age: 25 },
+  ]);
+
+  const addRow = () => {
+    const newRow = { id: rows.length + 1, name: 'New User', age: 20 };
+    setRows([...rows, newRow]);
+  };
+
+  const removeRow = () => {
+    if (rows.length > 0) {
+      setRows(rows.slice(0, -1));
+    }
+  };
+
+  return (
+    <div>
+      <button onClick={addRow}>+</button>
+      <button onClick={removeRow}>-</button>
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Age</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(row => (
+            <tr key={row.id}>
+              <td>{row.id}</td>
+              <td>{row.name}</td>
+              <td>{row.age}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+
+
+
+
+
+
+
