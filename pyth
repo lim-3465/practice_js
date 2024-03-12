@@ -59,3 +59,47 @@ for filename in os.listdir(folder_path):
 # 변경사항 커밋 및 데이터베이스 연결 종료
 conn.commit()
 conn.close()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import sqlite3
+from datetime import datetime
+
+# 데이터베이스 연결
+conn = sqlite3.connect('example.db')
+c = conn.cursor()
+
+# 특정 유저의 정보 조회 쿼리
+user_id = 1  # 조회하고 싶은 유저의 ID
+
+query = '''
+SELECT u.user_name, al.access_time, p.permission, pc.change_time, pc.action
+FROM users u
+LEFT JOIN access_logs al ON u.user_id = al.user_id
+LEFT JOIN permissions p ON u.user_id = p.user_id
+LEFT JOIN permission_changes pc ON u.user_id = pc.user_id
+WHERE u.user_id = ?
+ORDER BY al.access_time DESC, pc.change_time DESC
+'''
+
+c.execute(query, (user_id,))
+rows = c.fetchall()
+
+for row in rows:
+    print(row)
+
+# 연결 종료
+conn.close()
+
+
