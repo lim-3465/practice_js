@@ -214,3 +214,41 @@ function DynamicTable() {
 
 
 
+// FormApp.js
+import React from 'react';
+import { useRecoilValue } from 'recoil';
+import { userRoleState } from './states';
+import { useImmer } from 'use-immer';
+
+function FormApp() {
+  const userRole = useRecoilValue(userRoleState); // 사용자 권한을 Recoil에서 가져옴
+  const [formsData, updateFormsData] = useImmer({
+    form1: { name: '', age: '' },
+    form2: { email: '', country: '' },
+  });
+
+  // ...
+
+  return (
+    <div>
+      {/* Form 1 */}
+      <div>
+        {/* Form 1 Inputs */}
+      </div>
+
+      {/* Form 2, 조건부로 렌더링 */}
+      {userRole === 'admin' && (
+        <div>
+          {/* Form 2 Inputs */}
+        </div>
+      )}
+
+      <button onClick={handleSubmit}>Submit</button>
+    </div>
+  );
+}
+
+
+
+
+
