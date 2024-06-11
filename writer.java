@@ -262,3 +262,110 @@ public class Main implements CommandLineRunner {
 }
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVPrinter;
+import org.apache.commons.csv.CSVRecord;
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+public class CsvUpdater {
+
+    public void updateCsvFile(Path filePath, List<Map<String, String>> data, String adjacentColumnName) throws IOException {
+        // Read existing data from CSV file
+        BufferedReader reader = new BufferedReader(new FileReader(filePath.toFile()));
+        CSVParser parser = new CSVParser(reader, CSVFormat.DEFAULT.withFirstRecordAsHeader());
+        List<CSVRecord> records = parser.getRecords();
+        Map<String, Integer> headerMap = parser.getHeaderMap();
+        
+        // Check if headers exist and find the adjacent column index
+        if (!headerMap.containsKey(adjacentColumnName)) {
+            throw new IllegalArgumentException("Column " + adjacentColumnName + " not found");
+        }
+        int adjacentColumnIndex = headerMap.get(adjacentColumnName);
+
+        // Create or find new headers next to the adjacent column
+        Map<String, Integer> newHeaderIndexMap = createOrFindNewHeaders(headerMap, data, adjacentColumnIndex);
+
+        // Prepare new CSV format with updated headers
+        String[] newHeaders = new String[newHeaderIndexMap.size()];
+        for (Map.Entry<String, Integer> entry : newHeaderIndexMap.entrySet()) {
+            newHeaders[entry.getValue()] = entry.getKey();
+        }
+        CSVFormat updatedFormat = CSVFormat.DEFAULT.withHeader(newHeaders);
+
+        // Update rows with data
+        BufferedWriter writer = new BufferedWriter(new FileWriter(filePath.toFile()));
+        CSVPrinter printer = new CSVPrinter(writer, updatedFormat);
+
+        // Write header
+        printer.printRecord((Object[]) newHeaders);
+
+        // Write existing and new data
+        for (int i = 0; i < records.size(); i++) {
+            CSVRecord record = records.get(i);
+            Map<String, String> rowData = i < data.size() ? data.get(i) : new HashMap<>();
+            String[] newRow = new String[newHeaderIndexMap.size()];
+
+            // Copy existing data
+            for (Map.Entry<String, Integer> entry : headerMap.entrySet()) {
+                newRow[entry.getValue()] = record.get(entry.getKey());
+            }
+
+            // Add new data
+            for (Map.Entry<String, String> entry : rowData.entrySet()) {
+                newRow[newHeaderIndexMap.get(entry.getKey())] = entry.getValue();
+            }
+
+            printer.printRecord((Object[]) newRow);
+        }
+
+        printer.flush();
+        printer.close();
+        parser.close();
+        reader.close();
+    }
+
+    private Map<String, Integer> createOrFindNewHeaders(Map<String, Integer> headerMap, List<Map<String, String>> data, int adjacentColumnIndex) {
+        Map<String, Integer> newHeaderIndexMap = new HashMap<>(headerMap);
+        int newColumnIndex = adjacentColumnIndex + 1;
+
+        for (String key : data.get(0).keySet()) {
+            if (!headerMap.containsKey(key)) {
+                newHeaderIndexMap.put(key, newColumnIndex);
+                newColumnIndex++;
+            }
+        }
+        return newHeaderIndexMap;
+    }
+}
+
+
+
+
