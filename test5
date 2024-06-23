@@ -1,3 +1,63 @@
+import React, { useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import FileDropComponent from './FileDropComponent';
+
+const App = () => {
+    const { register, handleSubmit, watch } = useForm();
+    const selectedFile = watch('file');
+
+    useEffect(() => {
+        if (selectedFile && selectedFile.length > 0) {
+            const file = selectedFile[0];
+            const acceptedTypes = ['application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv'];
+            if (file && acceptedTypes.includes(file.type)) {
+                handleFileUpload(file);
+            } else {
+                alert('Only .xls, .xlsx, .csv files are accepted.');
+            }
+        }
+    }, [selectedFile]);
+
+    const handleFileUpload = async (file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const response = await fetch('/api/upload', {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                console.log('File uploaded successfully:', result);
+            } else {
+                console.error('File upload failed');
+            }
+        } catch (error) {
+            console.error('Error uploading file:', error);
+        }
+    };
+
+    const onSubmit = (data) => {
+        console.log('Form Data:', data);
+    };
+
+    return (
+        <form onSubmit={handleSubmit(onSubmit)}>
+            <FileDropComponent register={register} />
+            <button type="submit">Submit</button>
+        </form>
+    );
+};
+
+export default App;
+
+
+
+
+
+
 import React, { useState, useRef } from 'react';
 
 const FileDropComponent = ({ register }) => {
