@@ -1,3 +1,125 @@
+import React, { useState, useRef } from 'react';
+
+const FileDropComponent = ({ register }) => {
+    const [isDragging, setIsDragging] = useState(false);
+    const fileInputRef = useRef(null);
+
+    const handleDragEnter = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+    };
+
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+    };
+
+    const handleDrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+
+        if (e.dataTransfer && e.dataTransfer.files) {
+            const droppedFiles = Array.from(e.dataTransfer.files);
+            const acceptedTypes = ['application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv'];
+
+            if (droppedFiles.length > 1) {
+                alert('Only one file is allowed.');
+                return;
+            }
+
+            const file = droppedFiles.find(file => acceptedTypes.includes(file.type));
+
+            if (file) {
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+                fileInputRef.current.files = dataTransfer.files;
+            } else {
+                alert('Only .xls, .xlsx, .csv files are accepted.');
+            }
+        }
+    };
+
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        const acceptedTypes = ['application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv'];
+        if (file && acceptedTypes.includes(file.type)) {
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            fileInputRef.current.files = dataTransfer.files;
+        } else {
+            alert('Only .xls, .xlsx, .csv files are accepted.');
+        }
+    };
+
+    const handleDivClick = () => {
+        if (fileInputRef.current) {
+            fileInputRef.current.click();
+        } else {
+            console.error('File input ref is not assigned');
+        }
+    };
+
+    return (
+        <div
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+            onClick={handleDivClick}
+            style={{
+                border: '2px dashed #cccccc',
+                borderRadius: '4px',
+                padding: '20px',
+                textAlign: 'center',
+                backgroundColor: isDragging ? '#e9e9e9' : '#ffffff',
+                cursor: 'pointer'
+            }}
+        >
+            <input
+                type="file"
+                style={{ display: 'none' }}
+                {...register('file', {
+                    required: 'A file is required'
+                })}
+                ref={fileInputRef}
+                onChange={handleFileChange}
+            />
+            <p>{isDragging ? 'Drop the file here...' : 'Drag & drop a file here, or click to select a file'}</p>
+        </div>
+    );
+};
+
+export default FileDropComponent;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
