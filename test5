@@ -1,3 +1,37 @@
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class ApiResponse<T> {
+    private T data;
+    private String status;
+    private String statusMessage;
+}
+
+
+
+
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api")
+public class HelloController {
+
+    @GetMapping("/hello")
+    public ApiResponse<String> hello() {
+        return new ApiResponse<>("Hello, World!", "SUCCESS", "Request was successful");
+    }
+}
+
+
+
+
+
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
