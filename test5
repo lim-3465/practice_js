@@ -1,3 +1,65 @@
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+
+import java.util.List;
+import java.util.Map;
+
+@Mapper
+public interface UserMapper {
+    void insertUsers(@Param("users") List<Map<String, String>> users);
+}
+
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.demo.mapper.UserMapper">
+    <insert id="insertUsers">
+        INSERT INTO users (username, email)
+        VALUES
+        <foreach collection="users" item="user" separator=",">
+            (#{user.name}, #{user.mail})
+        </foreach>
+    </insert>
+</mapper>
+
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Map;
+
+@Service
+public class UserService {
+
+    @Autowired
+    private UserMapper userMapper;
+
+    @Transactional
+    public void insertUsers(List<Map<String, String>> users) {
+        userMapper.insertUsers(users);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import React, { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import FileDropComponent from './FileDropComponent';
