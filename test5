@@ -1,3 +1,232 @@
+plugins {
+    id 'org.springframework.boot' version '2.7.2'
+    id 'io.spring.dependency-management' version '1.0.11.RELEASE'
+    id 'java'
+}
+
+group = 'com.example'
+version = '0.0.1-SNAPSHOT'
+sourceCompatibility = '11'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter:2.1.4'
+    runtimeOnly 'com.h2database:h2'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+
+
+
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  h2:
+    console:
+      enabled: true
+  mybatis:
+    mapper-locations: classpath:mappers/*.xml
+
+
+
+
+
+
+public class User {
+    private int id;
+    private String name;
+    private String email;
+
+    // Getters and Setters
+}
+
+
+
+
+
+
+import org.apache.ibatis.annotations.*;
+
+import java.util.List;
+
+@Mapper
+public interface UserMapper {
+
+    @Insert("INSERT INTO users (name, email) VALUES (#{name}, #{email})")
+    @Options(useGeneratedKeys = true, keyProperty = "id")
+    void insertUser(User user);
+
+    @Select("SELECT * FROM users WHERE id = #{id}")
+    User getUserById(int id);
+
+    @Select("SELECT * FROM users")
+    List<User> getAllUsers();
+
+    @Update("UPDATE users SET name = #{name}, email = #{email} WHERE id = #{id}")
+    void updateUser(User user);
+
+    @Delete("DELETE FROM users WHERE id = #{id}")
+    void deleteUser(int id);
+}
+
+
+
+
+
+
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.demo.mapper.UserMapper">
+    <resultMap id="userResultMap" type="User">
+        <id property="id" column="id" />
+        <result property="name" column="name" />
+        <result property="email" column="email" />
+    </resultMap>
+
+    <sql id="userColumns">id, name, email</sql>
+
+    <insert id="insertUser" parameterType="User" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO users (name, email)
+        VALUES (#{name}, #{email})
+    </insert>
+
+    <select id="getUserById" parameterType="int" resultMap="userResultMap">
+        SELECT <include refid="userColumns" />
+        FROM users
+        WHERE id = #{id}
+    </select>
+
+    <select id="getAllUsers" resultMap="userResultMap">
+        SELECT <include refid="userColumns" />
+        FROM users
+    </select>
+
+    <update id="updateUser" parameterType="User">
+        UPDATE users
+        SET name = #{name}, email = #{email}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteUser" parameterType="int">
+        DELETE FROM users
+        WHERE id = #{id}
+    </delete>
+</mapper>
+
+
+
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL
+);
+
+
+
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+public class UserService {
+
+    @Autowired
+    private UserMapper userMapper;
+
+    public void insertUser(User user) {
+        userMapper.insertUser(user);
+    }
+
+    public User getUserById(int id) {
+        return userMapper.getUserById(id);
+    }
+
+    public List<User> getAllUsers() {
+        return userMapper.getAllUsers();
+    }
+
+    public void updateUser(User user) {
+        userMapper.updateUser(user);
+    }
+
+    public void deleteUser(int id) {
+        userMapper.deleteUser(id);
+    }
+}
+
+
+
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/users")
+public class UserController {
+
+    @Autowired
+    private UserService userService;
+
+    @PostMapping
+    public String createUser(@RequestBody User user) {
+        userService.insertUser(user);
+        return "User created successfully!";
+    }
+
+    @GetMapping("/{id}")
+    public User getUserById(@PathVariable int id) {
+        return userService.getUserById(id);
+    }
+
+    @GetMapping
+    public List<User> getAllUsers() {
+        return userService.getAllUsers();
+    }
+
+    @PutMapping("/{id}")
+    public String updateUser(@PathVariable int id, @RequestBody User user) {
+        user.setId(id);
+        userService.updateUser(user);
+        return "User updated successfully!";
+    }
+
+    @DeleteMapping("/{id}")
+    public String deleteUser(@PathVariable int id) {
+        userService.deleteUser(id);
+        return "User deleted successfully!";
+    }
+}
+
+
+
+
+
+
+
+
+
+
 
 
 
