@@ -1,3 +1,66 @@
+import React, { useState } from 'react';
+import axios from 'axios';
+
+const FileUpload = () => {
+    const [selectedFile, setSelectedFile] = useState(null);
+    const [uploadStatus, setUploadStatus] = useState('');
+    const [downloadUrl, setDownloadUrl] = useState('');
+
+    const onFileChange = (event) => {
+        setSelectedFile(event.target.files[0]);
+    };
+
+    const onFileUpload = async () => {
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+
+        try {
+            const response = await axios.post('/api/upload', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+            setUploadStatus('File uploaded successfully!');
+            checkStatus(response.data.fileId);
+        } catch (error) {
+            console.error('Error uploading file:', error);
+            setUploadStatus('Error uploading file.');
+        }
+    };
+
+    const checkStatus = (fileId) => {
+        const interval = setInterval(async () => {
+            try {
+                const response = await axios.get(`/api/status/${fileId}`);
+                if (response.data.status === 'COMPLETED') {
+                    clearInterval(interval);
+                    setDownloadUrl(`/api/download/${fileId}`);
+                    setUploadStatus('File processing completed. You can download the file now.');
+                }
+            } catch (error) {
+                console.error('Error checking status:', error);
+                setUploadStatus('Error checking status.');
+            }
+        }, 15000); // 15 seconds
+    };
+
+    return (
+        <div>
+            <h2>File Upload</h2>
+            <input type="file" onChange={onFileChange} />
+            <button onClick={onFileUpload}>Upload</button>
+            <p>{uploadStatus}</p>
+            {downloadUrl && <a href={downloadUrl} download>Download File</a>}
+        </div>
+    );
+};
+
+export default FileUpload;
+
+
+
+
+
 plugins {
     id 'org.springframework.boot' version '2.7.2'
     id 'io.spring.dependency-management' version '1.0.11.RELEASE'
