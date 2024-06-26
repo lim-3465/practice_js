@@ -1,3 +1,77 @@
+package com.example.demo.utils;
+
+import com.opencsv.CSVReader;
+import com.opencsv.CSVWriter;
+
+import java.io.*;
+import java.util.*;
+
+public class CSVUtils {
+
+    public static void writeDataToCSV(List<Map<String, String>> data, String filePath) throws IOException {
+        boolean fileExists = new java.io.File(filePath).exists();
+        List<String[]> existingData = new ArrayList<>();
+        Map<String, Integer> headerIndexMap = new LinkedHashMap<>();
+
+        // Read existing data and headers if file exists
+        if (fileExists) {
+            try (CSVReader reader = new CSVReader(new FileReader(filePath))) {
+                String[] line;
+                while ((line = reader.readNext()) != null) {
+                    existingData.add(line);
+                }
+            }
+            if (!existingData.isEmpty()) {
+                String[] headers = existingData.get(0);
+                for (int i = 0; i < headers.length; i++) {
+                    headerIndexMap.put(headers[i], i);
+                }
+            }
+        }
+
+        // Determine all headers (existing + new)
+        for (Map<String, String> rowMap : data) {
+            for (String key : rowMap.keySet()) {
+                if (!headerIndexMap.containsKey(key)) {
+                    headerIndexMap.put(key, headerIndexMap.size());
+                }
+            }
+        }
+
+        // Prepare data for writing
+        List<String[]> allData = new ArrayList<>();
+        allData.add(headerIndexMap.keySet().toArray(new String[0]));
+
+        if (fileExists && !existingData.isEmpty()) {
+            for (int i = 1; i < existingData.size(); i++) {
+                allData.add(existingData.get(i));
+            }
+        }
+
+        // Add new data
+        for (Map<String, String> rowMap : data) {
+            String[] row = new String[headerIndexMap.size()];
+            for (Map.Entry<String, Integer> entry : headerIndexMap.entrySet()) {
+                row[entry.getValue()] = rowMap.getOrDefault(entry.getKey(), "");
+            }
+            allData.add(row);
+        }
+
+        // Write data to CSV
+        try (CSVWriter writer = new CSVWriter(new FileWriter(filePath))) {
+            writer.writeAll(allData);
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
 아래의 코드는 각 맵의 키를 컬럼명으로 사용하고, 값을 행으로 추가하는 방법을 보여줍니다. 기존 파일의 컬럼을 유지하면서 새로운 컬럼이 있으면 뒤에 추가됩니다.
 
 ### 엑셀 파일에 데이터 추가
