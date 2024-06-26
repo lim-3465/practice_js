@@ -1,3 +1,247 @@
+컬럼 이름과 객체의 필드 이름이 다를 경우, 이를 매핑하기 위해 매핑 정보를 사용할 수 있습니다. 매핑 정보는 주로 해시맵을 사용하여 각 컬럼 이름을 객체 필드 이름에 매핑합니다.
+
+아래는 매핑 정보를 사용하여 `Map` 데이터를 객체로 변환하는 예제입니다.
+
+### 1. 객체 정의
+
+#### Person.java
+
+```java
+package com.example.demo;
+
+public class Person {
+    private String fullName;
+    private String emailAddress;
+
+    // Getters and Setters
+    public String getFullName() {
+        return fullName;
+    }
+
+    public void setFullName(String fullName) {
+        this.fullName = fullName;
+    }
+
+    public String getEmailAddress() {
+        return emailAddress;
+    }
+
+    public void setEmailAddress(String emailAddress) {
+        this.emailAddress = emailAddress;
+    }
+
+    @Override
+    public String toString() {
+        return "Person{fullName='" + fullName + "', emailAddress='" + emailAddress + "'}";
+    }
+}
+```
+
+### 2. Map을 객체로 변환하는 유틸리티 클래스
+
+#### ObjectMapperUtils.java
+
+```java
+package com.example.demo.utils;
+
+import java.lang.reflect.Field;
+import java.util.Map;
+
+public class ObjectMapperUtils {
+
+    public static <T> T mapToEntity(Map<String, String> map, Class<T> clazz, Map<String, String> fieldMappings) throws IllegalAccessException, InstantiationException {
+        T entity = clazz.newInstance();
+
+        for (Map.Entry<String, String> entry : map.entrySet()) {
+            String fieldName = fieldMappings.getOrDefault(entry.getKey(), entry.getKey());
+            try {
+                Field field = clazz.getDeclaredField(fieldName);
+                field.setAccessible(true);
+                field.set(entity, entry.getValue());
+            } catch (NoSuchFieldException e) {
+                // If the field does not exist, ignore it
+            }
+        }
+
+        return entity;
+    }
+}
+```
+
+### 3. 사용 예제
+
+매핑 정보를 사용하여 Map 데이터를 Person 객체로 변환하는 예제입니다.
+
+#### Main.java
+
+```java
+package com.example.demo;
+
+import com.example.demo.utils.ObjectMapperUtils;
+
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+public class Main {
+    public static void main(String[] args) {
+        List<Map<String, String>> mapData = List.of(
+            Map.of("name", "antony", "mail", "antony@naver.com"),
+            Map.of("name", "lim", "mail", "lim@naver.com")
+        );
+
+        // Define the field mappings
+        Map<String, String> fieldMappings = Map.of(
+            "name", "fullName",
+            "mail", "emailAddress"
+        );
+
+        List<Person> data = mapData.stream()
+            .map(map -> {
+                try {
+                    return ObjectMapperUtils.mapToEntity(map, Person.class, fieldMappings);
+                } catch (InstantiationException | IllegalAccessException e) {
+                    e.printStackTrace();
+                    return null;
+                }
+            })
+            .collect(Collectors.toList());
+
+        data.forEach(System.out::println);
+    }
+}
+```
+
+### 4. 엑셀 및 CSV 파일에 객체 데이터 추가
+
+이제 Map을 객체로 변환한 후, 객체 데이터를 엑셀 및 CSV 파일에 추가할 수 있습니다. 아래는 수정된 `ExcelUtils` 클래스입니다.
+
+#### ExcelUtils.java (수정)
+
+```java
+package com.example.demo.utils;
+
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFSheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.lang.reflect.Field;
+import java.util.*;
+
+public class ExcelUtils {
+
+    public static <T> void writeDataToExcel(List<T> data, String filePath, Class<T> clazz) throws IOException, IllegalAccessException {
+        XSSFWorkbook workbook;
+        XSSFSheet sheet;
+        boolean fileExists = new java.io.File(filePath).exists();
+        Map<String, Integer> headerIndexMap = new LinkedHashMap<>();
+        int rowIndex = 0;
+
+        if (fileExists) {
+            try (FileInputStream fileIn = new FileInputStream(filePath)) {
+                workbook = new XSSFWorkbook(fileIn);
+                sheet = workbook.getSheetAt(0);
+                rowIndex = sheet.getLastRowNum() + 1;
+
+                // Read existing headers
+                Row headerRow = sheet.getRow(0);
+                for (Cell cell : headerRow) {
+                    headerIndexMap.put(cell.getStringCellValue(), cell.getColumnIndex());
+                }
+            }
+        } else {
+            workbook = new XSSFWorkbook();
+            sheet = workbook.createSheet("Data");
+            rowIndex = 1; // Start writing data from the second row (first row is header)
+        }
+
+        // Determine all headers (existing + new)
+        for (T entity : data) {
+            for (Field field : clazz.getDeclaredFields()) {
+                if (!headerIndexMap.containsKey(field.getName())) {
+                    headerIndexMap.put(field.getName(), headerIndexMap.size());
+                }
+            }
+        }
+
+        // Write headers if the file did not exist
+        if (!fileExists) {
+            Row headerRow = sheet.createRow(0);
+            for (Map.Entry<String, Integer> entry : headerIndexMap.entrySet()) {
+                Cell cell = headerRow.createCell(entry.getValue());
+                cell.setCellValue(entry.getKey());
+            }
+        } else {
+            // Update headers if there are new headers
+            Row headerRow = sheet.getRow(0);
+            int headerCellIndex = headerRow.getLastCellNum();
+            for (Map.Entry<String, Integer> entry : headerIndexMap.entrySet()) {
+                if (headerRow.getCell(entry.getValue()) == null) {
+                    Cell cell = headerRow.createCell(headerCellIndex++);
+                    cell.setCellValue(entry.getKey());
+                }
+            }
+        }
+
+        // Write data rows
+        for (T entity : data) {
+            Row row = sheet.createRow(rowIndex++);
+            for (Map.Entry<String, Integer> entry : headerIndexMap.entrySet()) {
+                Cell cell = row.createCell(entry.getValue());
+                Field field = clazz.getDeclaredField(entry.getKey());
+                field.setAccessible(true);
+                cell.setCellValue(field.get(entity).toString());
+            }
+        }
+
+        // Write to file
+        try (FileOutputStream fileOut = new FileOutputStream(filePath)) {
+            workbook.write(fileOut);
+        }
+        workbook.close();
+    }
+}
+```
+
+### 사용 예제
+
+#### 엑셀 파일에 데이터 추가
+
+```java
+List<Map<String, String>> mapData = List.of(
+    Map.of("name", "antony", "mail", "antony@naver.com"),
+    Map.of("name", "lim", "mail", "lim@naver.com")
+);
+
+Map<String, String> fieldMappings = Map.of(
+    "name", "fullName",
+    "mail", "emailAddress"
+);
+
+List<Person> data = mapData.stream()
+    .map(map -> {
+        try {
+            return ObjectMapperUtils.mapToEntity(map, Person.class, fieldMappings);
+        } catch (InstantiationException | IllegalAccessException e) {
+            e.printStackTrace();
+            return null;
+        }
+    })
+    .collect(Collectors.toList());
+
+String excelFilePath = "data.xlsx";
+ExcelUtils.writeDataToExcel(data, excelFilePath, Person.class);
+```
+
+이렇게 하면 컬럼 이름과 객체 필드 이름이 다를 경우에도 Map 데이터를 객체로 변환한 후, 객체 데이터를 엑셀 파일에 추가할 수 있습니다. 동일한 방식으로 CSV 파일에도 추가할 수 있습니다.
+
+
+
+
+
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
