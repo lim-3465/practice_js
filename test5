@@ -1,3 +1,158 @@
+두 단계로 감싸져 있는 경우, MyBatis 매핑 파일에서 내부 객체의 필드를 적절히 매핑해야 합니다. 예를 들어, `FileStatus` 클래스의 `status` 필드가 `Status`라는 객체로 감싸져 있는 경우를 다루겠습니다.
+
+### 1. Java 객체 클래스 정의
+
+#### Status.java
+
+```java
+package com.example.demo;
+
+public class Status {
+    private String status;
+
+    // Getters and Setters
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+}
+```
+
+#### FileStatus.java
+
+```java
+package com.example.demo;
+
+public class FileStatus {
+    private UUIDWrapper id;
+    private Status status;
+    private String fileName;
+
+    // Getters and Setters
+    public UUIDWrapper getId() {
+        return id;
+    }
+
+    public void setId(UUIDWrapper id) {
+        this.id = id;
+    }
+
+    public Status getStatus() {
+        return status;
+    }
+
+    public void setStatus(Status status) {
+        this.status = status;
+    }
+
+    public String getFileName() {
+        return fileName;
+    }
+
+    public void setFileName(String fileName) {
+        this.fileName = fileName;
+    }
+}
+```
+
+### 2. MyBatis 매퍼 XML 파일 정의
+
+MyBatis 매핑 파일에서 내부 객체를 매핑하기 위해 `association` 요소를 사용합니다.
+
+#### src/main/resources/mapper/FileStatusMapper.xml
+
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.demo.mapper.FileStatusMapper">
+    <resultMap id="fileStatusResultMap" type="com.example.demo.FileStatus">
+        <id property="id.uuid" column="id" javaType="java.util.UUID" jdbcType="VARCHAR"/>
+        <association property="status" javaType="com.example.demo.Status">
+            <result property="status" column="status"/>
+        </association>
+        <result property="fileName" column="file_name"/>
+    </resultMap>
+
+    <insert id="insertFileStatus" parameterType="com.example.demo.FileStatus">
+        INSERT INTO file_status (id, status, file_name) VALUES (#{id.uuid}, #{status.status}, #{fileName})
+    </insert>
+
+    <select id="getFileStatusById" parameterType="java.lang.String" resultMap="fileStatusResultMap">
+        SELECT * FROM file_status WHERE id = #{id}
+    </select>
+
+    <update id="updateFileStatus" parameterType="com.example.demo.FileStatus">
+        UPDATE file_status SET status = #{status.status}, file_name = #{fileName} WHERE id = #{id.uuid}
+    </update>
+
+    <delete id="deleteFileStatus" parameterType="java.lang.String">
+        DELETE FROM file_status WHERE id = #{id}
+    </delete>
+</mapper>
+```
+
+### 3. DAO 클래스 정의
+
+DAO 클래스 (`FileStatusMapper.java`)가 올바르게 매핑 파일을 사용하도록 설정합니다.
+
+#### FileStatusMapper.java
+
+```java
+package com.example.demo.mapper;
+
+import com.example.demo.FileStatus;
+import org.apache.ibatis.annotations.*;
+
+@Mapper
+public interface FileStatusMapper {
+
+    @Insert("INSERT INTO file_status (id, status, file_name) VALUES (#{id.uuid}, #{status.status}, #{fileName})")
+    void insertFileStatus(FileStatus fileStatus);
+
+    @Select("SELECT * FROM file_status WHERE id = #{id}")
+    @ResultMap("fileStatusResultMap")
+    FileStatus getFileStatusById(String id);
+
+    @Update("UPDATE file_status SET status = #{status.status}, file_name = #{fileName} WHERE id = #{id.uuid}")
+    void updateFileStatus(FileStatus fileStatus);
+
+    @Delete("DELETE FROM file_status WHERE id = #{id}")
+    void deleteFileStatus(String id);
+}
+```
+
+### 4. Spring 설정 파일 확인
+
+Spring 설정 파일 (`applicationContext.xml` 또는 `Spring Boot`의 경우 `application.yml`/`application.properties`)에서 MyBatis 관련 설정을 확인합니다.
+
+#### application.yml (Spring Boot)
+
+```yaml
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/yourdatabase
+    username: yourusername
+    password: yourpassword
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+mybatis:
+  config-location: classpath:mybatis-config.xml
+  mapper-locations: classpath:mapper/*.xml
+```
+
+이 설정을 통해 MyBatis와 Spring Boot를 사용하여 객체가 두 단계로 감싸져 있을 때 바인딩 예외 오류를 해결할 수 있습니다. 주요 점은 SQL 문에서 참조하는 필드 이름이 Java 객체와 일치하는지, 데이터 타입이 일치하는지 확인하는 것입니다.
+
+
+
+
+
+
 리눅스 서버에서 Jenkins와 Bitbucket을 사용하여 리액트 애플리케이션과 백엔드 애플리케이션을 자동으로 빌드 및 배포하는 파이프라인을 구축하는 방법을 단계별로 설명하겠습니다.
 
 ### 1. Jenkins 설치 및 설정
