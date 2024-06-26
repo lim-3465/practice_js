@@ -1,3 +1,214 @@
+아래의 코드는 각 맵의 키를 컬럼명으로 사용하고, 값을 행으로 추가하는 방법을 보여줍니다. 기존 파일의 컬럼을 유지하면서 새로운 컬럼이 있으면 뒤에 추가됩니다.
+
+### 엑셀 파일에 데이터 추가
+
+#### ExcelUtils.java
+
+```java
+package com.example.demo.utils;
+
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFSheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.*;
+
+public class ExcelUtils {
+
+    public static void writeDataToExcel(List<Map<String, String>> data, String filePath) throws IOException {
+        XSSFWorkbook workbook;
+        XSSFSheet sheet;
+        boolean fileExists = new java.io.File(filePath).exists();
+        Set<String> existingHeaders = new LinkedHashSet<>();
+        int rowIndex = 0;
+
+        if (fileExists) {
+            try (FileInputStream fileIn = new FileInputStream(filePath)) {
+                workbook = new XSSFWorkbook(fileIn);
+                sheet = workbook.getSheetAt(0);
+                rowIndex = sheet.getLastRowNum() + 1;
+
+                // Read existing headers
+                Row headerRow = sheet.getRow(0);
+                for (Cell cell : headerRow) {
+                    existingHeaders.add(cell.getStringCellValue());
+                }
+            }
+        } else {
+            workbook = new XSSFWorkbook();
+            sheet = workbook.createSheet("Data");
+            rowIndex = 1; // Start writing data from the second row (first row is header)
+        }
+
+        // Determine all headers (existing + new)
+        Set<String> allHeaders = new LinkedHashSet<>(existingHeaders);
+        for (Map<String, String> rowMap : data) {
+            allHeaders.addAll(rowMap.keySet());
+        }
+
+        // Write headers if the file did not exist
+        if (!fileExists) {
+            Row headerRow = sheet.createRow(0);
+            int headerCellIndex = 0;
+            for (String header : allHeaders) {
+                Cell cell = headerRow.createCell(headerCellIndex++);
+                cell.setCellValue(header);
+            }
+        } else {
+            // Update headers if there are new headers
+            Row headerRow = sheet.getRow(0);
+            int headerCellIndex = headerRow.getLastCellNum();
+            for (String header : allHeaders) {
+                if (!existingHeaders.contains(header)) {
+                    Cell cell = headerRow.createCell(headerCellIndex++);
+                    cell.setCellValue(header);
+                }
+            }
+        }
+
+        // Write data rows
+        for (Map<String, String> rowMap : data) {
+            Row row = sheet.createRow(rowIndex++);
+            int cellIndex = 0;
+            for (String header : allHeaders) {
+                Cell cell = row.createCell(cellIndex++);
+                cell.setCellValue(rowMap.getOrDefault(header, ""));
+            }
+        }
+
+        // Write to file
+        try (FileOutputStream fileOut = new FileOutputStream(filePath)) {
+            workbook.write(fileOut);
+        }
+        workbook.close();
+    }
+}
+```
+
+### CSV 파일에 데이터 추가
+
+#### CSVUtils.java
+
+```java
+package com.example.demo.utils;
+
+import com.opencsv.CSVReader;
+import com.opencsv.CSVWriter;
+
+import java.io.*;
+import java.util.*;
+
+public class CSVUtils {
+
+    public static void writeDataToCSV(List<Map<String, String>> data, String filePath) throws IOException {
+        boolean fileExists = new java.io.File(filePath).exists();
+        List<String[]> existingData = new ArrayList<>();
+        Set<String> existingHeaders = new LinkedHashSet<>();
+        Set<String> allHeaders = new LinkedHashSet<>();
+
+        // Read existing data and headers if file exists
+        if (fileExists) {
+            try (CSVReader reader = new CSVReader(new FileReader(filePath))) {
+                String[] line;
+                while ((line = reader.readNext()) != null) {
+                    existingData.add(line);
+                }
+            }
+            if (!existingData.isEmpty()) {
+                existingHeaders.addAll(Arrays.asList(existingData.get(0)));
+            }
+        }
+
+        // Determine all headers (existing + new)
+        for (Map<String, String> rowMap : data) {
+            allHeaders.addAll(rowMap.keySet());
+        }
+        allHeaders.addAll(existingHeaders);
+
+        // Write data to CSV
+        try (CSVWriter writer = new CSVWriter(new FileWriter(filePath))) {
+            // Write headers
+            writer.writeNext(allHeaders.toArray(new String[0]));
+
+            // Write existing data with new headers
+            if (fileExists && !existingData.isEmpty()) {
+                for (int i = 1; i < existingData.size(); i++) {
+                    String[] oldRow = existingData.get(i);
+                    String[] newRow = new String[allHeaders.size()];
+                    Map<String, Integer> headerIndexMap = getHeaderIndexMap(existingHeaders);
+                    int newIndex = 0;
+                    for (String header : allHeaders) {
+                        if (headerIndexMap.containsKey(header)) {
+                            newRow[newIndex++] = oldRow[headerIndexMap.get(header)];
+                        } else {
+                            newRow[newIndex++] = "";
+                        }
+                    }
+                    writer.writeNext(newRow);
+                }
+            }
+
+            // Write new data
+            for (Map<String, String> rowMap : data) {
+                String[] row = new String[allHeaders.size()];
+                int cellIndex = 0;
+                for (String header : allHeaders) {
+                    row[cellIndex++] = rowMap.getOrDefault(header, "");
+                }
+                writer.writeNext(row);
+            }
+        }
+    }
+
+    private static Map<String, Integer> getHeaderIndexMap(Set<String> headers) {
+        Map<String, Integer> headerIndexMap = new HashMap<>();
+        int index = 0;
+        for (String header : headers) {
+            headerIndexMap.put(header, index++);
+        }
+        return headerIndexMap;
+    }
+}
+```
+
+### 사용 예제
+
+#### 엑셀 파일에 데이터 추가
+
+```java
+List<Map<String, String>> data = List.of(
+    Map.of("name", "antony"),
+    Map.of("mail", "antony@naver.com"),
+    Map.of("name", "lim"),
+    Map.of("mail", "lim@naver.com")
+);
+
+String excelFilePath = "data.xlsx";
+ExcelUtils.writeDataToExcel(data, excelFilePath);
+```
+
+#### CSV 파일에 데이터 추가
+
+```java
+List<Map<String, String>> data = List.of(
+    Map.of("name", "antony"),
+    Map.of("mail", "antony@naver.com"),
+    Map.of("name", "lim"),
+    Map.of("mail", "lim@naver.com")
+);
+
+String csvFilePath = "data.csv";
+CSVUtils.writeDataToCSV(data, csvFilePath);
+
+
+
+
+
+
+
 두 단계로 감싸져 있는 경우, MyBatis 매핑 파일에서 내부 객체의 필드를 적절히 매핑해야 합니다. 예를 들어, `FileStatus` 클래스의 `status` 필드가 `Status`라는 객체로 감싸져 있는 경우를 다루겠습니다.
 
 ### 1. Java 객체 클래스 정의
