@@ -1,3 +1,87 @@
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
+public class Main {
+    public static void main(String[] args) {
+        // 원본 맵 생성
+        Map<String, String> map = new HashMap<>();
+        map.put("name", "antony");
+        map.put("mail", "antony@naver.com");
+        map.put("age", "25");
+        map.put("city", "Seoul");
+
+        // 유지할 키들 정의
+        Set<String> keysToKeep = new HashSet<>();
+        keysToKeep.add("name");
+        keysToKeep.add("mail");
+
+        // 맵에서 원하는 키만 남기기
+        map.keySet().retainAll(keysToKeep);
+
+        // 결과 출력
+        System.out.println(map); // {name=antony, mail=antony@naver.com}
+    }
+}
+
+
+
+import React, { useState, useEffect, useMemo } from 'react';
+import { AgGridReact } from 'ag-grid-react';
+import 'ag-grid-community/styles/ag-grid.css';
+import 'ag-grid-community/styles/ag-theme-alpine.css';
+
+const App = () => {
+  const [rowData, setRowData] = useState([]);
+
+  const fetchData = async () => {
+    const response = await fetch('https://api.example.com/data'); // API URL을 여기에 입력하세요
+    const data = await response.json();
+    setRowData(data);
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const ButtonRenderer = (params) => {
+    return (
+      <button onClick={() => alert(`Row data: ${JSON.stringify(params.data)}`)}>
+        Click Me
+      </button>
+    );
+  };
+
+  const columnDefs = useMemo(() => [
+    { headerName: 'Name', field: 'name' },
+    { headerName: 'Email', field: 'email' },
+    {
+      headerName: 'Actions',
+      field: 'actions',
+      cellRendererFramework: ButtonRenderer
+    }
+  ], []);
+
+  return (
+    <div className="ag-theme-alpine" style={{ height: 400, width: 600 }}>
+      <AgGridReact
+        rowData={rowData}
+        columnDefs={columnDefs}
+        defaultColDef={{ flex: 1, minWidth: 150, resizable: true }}
+        suppressRowClickSelection={true}
+        rowSelection="none"
+      />
+    </div>
+  );
+};
+
+export default App;
+
+
+
+
+
 컬럼 이름과 객체의 필드 이름이 다를 경우, 이를 매핑하기 위해 매핑 정보를 사용할 수 있습니다. 매핑 정보는 주로 해시맵을 사용하여 각 컬럼 이름을 객체 필드 이름에 매핑합니다.
 
 아래는 매핑 정보를 사용하여 `Map` 데이터를 객체로 변환하는 예제입니다.
