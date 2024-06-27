@@ -1,3 +1,134 @@
+맵의 키 값과 객체의 필드 이름이 다를 때, 이를 매핑하여 변환하는 유틸리티 메서드를 작성할 수 있습니다. 이 메서드는 주어진 매핑 정보를 사용하여 맵의 데이터를 객체의 필드로 설정합니다.
+
+다음은 Java에서 이 작업을 수행하는 방법에 대한 예제입니다.
+
+### 1. 객체 정의
+
+먼저, 데이터를 매핑할 객체 클래스를 정의합니다.
+
+#### Person.java
+
+```java
+package com.example.demo;
+
+public class Person {
+    private String fullName;
+    private String emailAddress;
+
+    // Getters and Setters
+    public String getFullName() {
+        return fullName;
+    }
+
+    public void setFullName(String fullName) {
+        this.fullName = fullName;
+    }
+
+    public String getEmailAddress() {
+        return emailAddress;
+    }
+
+    public void setEmailAddress(String emailAddress) {
+        this.emailAddress = emailAddress;
+    }
+
+    @Override
+    public String toString() {
+        return "Person{fullName='" + fullName + "', emailAddress='" + emailAddress + "'}";
+    }
+}
+```
+
+### 2. Map을 객체로 변환하는 유틸리티 클래스
+
+리플렉션을 사용하여 Map의 데이터를 객체로 변환하는 유틸리티 메서드를 정의합니다.
+
+#### ObjectMapperUtils.java
+
+```java
+package com.example.demo.utils;
+
+import java.lang.reflect.Field;
+import java.util.Map;
+
+public class ObjectMapperUtils {
+
+    public static <T> T mapToEntity(Map<String, String> map, Class<T> clazz, Map<String, String> fieldMappings) throws IllegalAccessException, InstantiationException {
+        T entity = clazz.newInstance();
+
+        for (Map.Entry<String, String> entry : map.entrySet()) {
+            String fieldName = fieldMappings.getOrDefault(entry.getKey(), entry.getKey());
+            try {
+                Field field = clazz.getDeclaredField(fieldName);
+                field.setAccessible(true);
+                field.set(entity, entry.getValue());
+            } catch (NoSuchFieldException e) {
+                // If the field does not exist, ignore it
+            }
+        }
+
+        return entity;
+    }
+}
+```
+
+### 3. 사용 예제
+
+매핑 정보를 사용하여 Map 데이터를 Person 객체로 변환하는 예제입니다.
+
+#### Main.java
+
+```java
+package com.example.demo;
+
+import com.example.demo.utils.ObjectMapperUtils;
+
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+public class Main {
+    public static void main(String[] args) {
+        List<Map<String, String>> mapData = List.of(
+            Map.of("name", "antony", "mail", "antony@naver.com"),
+            Map.of("name", "lim", "mail", "lim@naver.com")
+        );
+
+        // Define the field mappings
+        Map<String, String> fieldMappings = Map.of(
+            "name", "fullName",
+            "mail", "emailAddress"
+        );
+
+        List<Person> data = mapData.stream()
+            .map(map -> {
+                try {
+                    return ObjectMapperUtils.mapToEntity(map, Person.class, fieldMappings);
+                } catch (InstantiationException | IllegalAccessException e) {
+                    e.printStackTrace();
+                    return null;
+                }
+            })
+            .collect(Collectors.toList());
+
+        data.forEach(System.out::println);
+    }
+}
+```
+
+### 설명
+
+1. **객체 정의**: `Person` 클래스는 `fullName`과 `emailAddress` 필드를 가집니다.
+2. **유틸리티 클래스**: `ObjectMapperUtils` 클래스는 Map 데이터를 객체로 변환합니다. `fieldMappings`를 사용하여 맵의 키와 객체의 필드 이름을 매핑합니다.
+3. **사용 예제**: `Main` 클래스에서 맵 데이터를 `Person` 객체로 변환하고 출력합니다.
+
+이 방법을 사용하면 맵의 키와 객체의 필드 이름이 다를 때도 데이터를 객체로 변환할 수 있습니다. `fieldMappings`를 사용하여 유연하게 매핑을 정의할 수 있습니다.
+
+
+
+
+
+
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
