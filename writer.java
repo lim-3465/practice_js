@@ -1,3 +1,160 @@
+
+
+
+
+
+Jenkins와 Bitbucket, Windows PowerShell, JFrog Artifactory (AIM)를 사용하여 배포하는 방법에 대해 단계별로 설명드리겠습니다. 아래 단계는 Jenkins를 사용하여 Bitbucket에서 소스 코드를 가져오고, Windows PowerShell 스크립트를 사용하여 AIM으로 배포하는 과정을 포함합니다.
+
+### 1. 환경 준비
+
+먼저 필요한 도구들을 설치하고 설정합니다.
+
+- Jenkins: CI/CD 도구
+- Bitbucket: 소스 코드 저장소
+- JFrog Artifactory (AIM): 아티팩트 저장소
+- Windows PowerShell: 스크립트 실행
+
+### 2. Bitbucket 리포지토리 설정
+
+Bitbucket에 프로젝트 리포지토리를 설정하고, Jenkins에서 접근할 수 있도록 설정합니다.
+
+1. Bitbucket에서 새로운 리포지토리를 생성합니다.
+2. 리포지토리 URL을 복사합니다. (예: `https://bitbucket.org/your-username/your-repo.git`)
+
+### 3. Jenkins 설정
+
+Jenkins를 설치하고 설정합니다. Jenkins는 기본적으로 웹 브라우저를 통해 관리할 수 있습니다.
+
+#### Jenkins 플러그인 설치
+
+Jenkins에서 필요한 플러그인을 설치합니다.
+
+1. Jenkins 대시보드에서 `Manage Jenkins` > `Manage Plugins`로 이동합니다.
+2. `Available` 탭에서 다음 플러그인을 검색하고 설치합니다:
+   - `Git Plugin`
+   - `Bitbucket Plugin`
+   - `Pipeline`
+   - `JFrog Artifactory Plugin`
+
+#### Jenkins 파이프라인 생성
+
+1. Jenkins 대시보드에서 `New Item`을 클릭합니다.
+2. `Pipeline`을 선택하고, 이름을 입력한 후 `OK`를 클릭합니다.
+
+### 4. Jenkins 파이프라인 설정
+
+파이프라인 스크립트를 작성하여 Bitbucket에서 코드를 가져오고 PowerShell 스크립트를 실행하여 AIM으로 배포합니다.
+
+#### Jenkinsfile
+
+프로젝트의 루트 디렉토리에 `Jenkinsfile`을 작성합니다.
+
+```groovy
+pipeline {
+    agent any
+
+    environment {
+        BITBUCKET_CREDENTIALS = credentials('bitbucket-credentials-id')
+        ARTIFACTORY_CREDENTIALS = credentials('artifactory-credentials-id')
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git url: 'https://bitbucket.org/your-username/your-repo.git',
+                    credentialsId: 'bitbucket-credentials-id'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                powershell './build.ps1'
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                script {
+                    def server = Artifactory.server 'artifactory-server-id'
+                    def uploadSpec = """{
+                        "files": [
+                            {
+                                "pattern": "build/output/**/*",
+                                "target": "your-repo/your-folder/"
+                            }
+                        ]
+                    }"""
+                    server.upload(uploadSpec)
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            archiveArtifacts artifacts: 'build/output/**/*', allowEmptyArchive: true
+        }
+    }
+}
+```
+
+### 5. PowerShell 스크립트 작성
+
+프로젝트 루트 디렉토리에 PowerShell 스크립트를 작성합니다.
+
+#### build.ps1
+
+```powershell
+# build.ps1
+
+# Clean previous builds
+Remove-Item -Recurse -Force build/output/*
+
+# Your build commands here
+# For example, if you are using a .NET project:
+# dotnet build
+
+# Create an output directory if it doesn't exist
+if (-Not (Test-Path -Path build/output)) {
+    New-Item -ItemType Directory -Path build/output
+}
+
+# Move build artifacts to the output directory
+# For example:
+# Copy-Item -Path bin/Release/* -Destination build/output
+```
+
+### 6. Jenkins Credentials 설정
+
+Jenkins에서 Bitbucket과 Artifactory 접근을 위한 자격 증명을 설정합니다.
+
+1. Jenkins 대시보드에서 `Manage Jenkins` > `Manage Credentials`로 이동합니다.
+2. `(global)` 영역에 다음 자격 증명을 추가합니다:
+   - Bitbucket 자격 증명 (사용자 이름 및 비밀번호 또는 개인 액세스 토큰)
+   - Artifactory 자격 증명 (사용자 이름 및 API 키)
+
+### 7. 파이프라인 실행
+
+1. Jenkins에서 방금 생성한 파이프라인으로 이동합니다.
+2. `Build Now` 버튼을 클릭하여 파이프라인을 실행합니다.
+
+### 요약
+
+1. **Bitbucket 리포지토리 설정**: Bitbucket에서 리포지토리를 생성하고 URL을 복사합니다.
+2. **Jenkins 설정**: Jenkins를 설치하고 필요한 플러그인을 설치합니다.
+3. **Jenkins 파이프라인 생성**: 새로운 파이프라인을 생성하고 `Jenkinsfile`을 작성합니다.
+4. **PowerShell 스크립트 작성**: 빌드를 위한 PowerShell 스크립트를 작성합니다.
+5. **Jenkins Credentials 설정**: Jenkins에서 Bitbucket과 Artifactory 접근을 위한 자격 증명을 설정합니다.
+6. **파이프라인 실행**: Jenkins에서 파이프라인을 실행하여 Bitbucket에서 코드를 가져오고, 빌드하고, Artifactory에 배포합니다.
+
+이 단계를 따라하면 Jenkins와 Bitbucket, PowerShell, Artifactory를 사용하여 소스 코드를 배포할 수 있습니다.
+
+
+
+
+
+
+
 맵의 키 값과 객체의 필드 이름이 다를 때, 이를 매핑하여 변환하는 유틸리티 메서드를 작성할 수 있습니다. 이 메서드는 주어진 매핑 정보를 사용하여 맵의 데이터를 객체의 필드로 설정합니다.
 
 다음은 Java에서 이 작업을 수행하는 방법에 대한 예제입니다.
