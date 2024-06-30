@@ -1,3 +1,181 @@
+
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+public class ExcelUpdater {
+
+    public static void updateExcel(String filePath, String keyColumn, String comparisonKey, List<Map<String, String>> data, Map<String, String> columnMapping) throws IOException {
+        Workbook workbook;
+        try (FileInputStream fileInputStream = new FileInputStream(filePath)) {
+            workbook = new XSSFWorkbook(fileInputStream);
+        }
+
+        Sheet sheet = workbook.getSheetAt(0);
+        Row headerRow = sheet.getRow(0);
+        if (headerRow == null) {
+            headerRow = sheet.createRow(0);
+        }
+
+        // Create header index map
+        Map<String, Integer> headerIndexMap = new HashMap<>();
+        int lastCellNum = headerRow.getLastCellNum();
+        if (lastCellNum == -1) {
+            lastCellNum = 0;
+        }
+
+        for (int i = 0; i < lastCellNum; i++) {
+            Cell cell = headerRow.getCell(i);
+            if (cell != null) {
+                headerIndexMap.put(cell.getStringCellValue().toLowerCase(), i);
+            }
+        }
+
+        // Create key column value to row index map
+        Map<String, Integer> keyColumnValueToRowIndex = new HashMap<>();
+        for (int i = 1; i <= sheet.getLastRowNum(); i++) {
+            Row row = sheet.getRow(i);
+            if (row != null) {
+                Cell cell = row.getCell(headerIndexMap.get(keyColumn.toLowerCase()));
+                if (cell != null) {
+                    keyColumnValueToRowIndex.put(cell.getStringCellValue().toLowerCase(), i);
+                }
+            }
+        }
+
+        // Add or update data
+        for (Map<String, String> rowData : data) {
+            String keyColumnValue = rowData.get(comparisonKey).toLowerCase();
+            Integer rowIndex = keyColumnValueToRowIndex.get(keyColumnValue);
+
+            if (rowIndex != null) {
+                // Update existing row
+                Row existingRow = sheet.getRow(rowIndex);
+                for (Map.Entry<String, String> entry : rowData.entrySet()) {
+                    String columnName = columnMapping.getOrDefault(entry.getKey(), entry.getKey());
+                    String value = entry.getValue();
+                    int colIndex = headerIndexMap.getOrDefault(columnName.toLowerCase(), -1);
+                    if (colIndex == -1) {
+                        colIndex = headerIndexMap.size();
+                        headerIndexMap.put(columnName.toLowerCase(), colIndex);
+                        Cell headerCell = headerRow.createCell(colIndex);
+                        headerCell.setCellValue(columnName);
+                    }
+                    Cell cell = existingRow.createCell(colIndex);
+                    cell.setCellValue(value);
+                }
+            } else {
+                // Add new row
+                Row newRow = sheet.createRow(sheet.getLastRowNum() + 1);
+                for (Map.Entry<String, String> entry : rowData.entrySet()) {
+                    String columnName = columnMapping.getOrDefault(entry.getKey(), entry.getKey());
+                    String value = entry.getValue();
+                    int colIndex = headerIndexMap.getOrDefault(column
+
+                    int colIndex = headerIndexMap.getOrDefault(columnName.toLowerCase(), -1);
+                    if (colIndex == -1) {
+                        colIndex = headerIndexMap.size();
+                        headerIndexMap.put(columnName.toLowerCase(), colIndex);
+                        Cell headerCell = headerRow.createCell(colIndex);
+                        headerCell.setCellValue(columnName);
+                    }
+                    Cell cell = newRow.createCell(colIndex);
+                    cell.setCellValue(value);
+                }
+                keyColumnValueToRowIndex.put(keyColumnValue.toLowerCase(), newRow.getRowNum());
+            }
+        }
+
+        // Write updated workbook to file
+        try (FileOutputStream fileOutputStream = new FileOutputStream(filePath)) {
+            workbook.write(fileOutputStream);
+        }
+        workbook.close();
+    }
+
+    public static void main(String[] args) throws IOException {
+        List<Map<String, String>> newData = new ArrayList<>();
+        Map<String, String> row1 = new HashMap<>();
+        row1.put("id", "1");
+        row1.put("phone", "123-456-7890");
+        newData.add(row1);
+
+        Map<String, String> row2 = new HashMap<>();
+        row2.put("uid", "3");
+        row2.put("fullname", "Alice Johnson");
+        row2.put("email", "alice.johnson@example.com");
+        newData.add(row2);
+
+        Map<String, String> columnMapping = new HashMap<>();
+        columnMapping.put("uid", "id");
+        columnMapping.put("fullname", "name");
+        columnMapping.put("phone", "phone");
+
+        updateExcel("data.xlsx", "id", "id", newData, columnMapping);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                    Cell cell = newRow.createCell(colIndex);
+                    cell.setCellValue(value);
+                }
+                keyColumnValueToRowIndex.put(keyColumnValue, newRow.getRowNum());
+            }
+        }
+
+        // Write updated workbook to file
+        try (FileOutputStream fileOutputStream = new FileOutputStream(filePath)) {
+            workbook.write(fileOutputStream);
+        }
+        workbook.close();
+    }
+
+    public static void main(String[] args) throws IOException {
+        List<Map<String, String>> newData = new ArrayList<>();
+        Map<String, String> row1 = new HashMap<>();
+        row1.put("id", "1");
+        row1.put("phone", "123-456-7890");
+        newData.add(row1);
+
+        Map<String, String> row2 = new HashMap<>();
+        row2.put("uid", "3");
+        row2.put("fullname", "Alice Johnson");
+        row2.put("email", "alice.johnson@example.com");
+        newData.add(row2);
+
+        Map<String, String> columnMapping = new HashMap<>();
+        columnMapping.put("uid", "id");
+        columnMapping.put("fullname", "name");
+        columnMapping.put("phone", "phone");
+
+        updateExcel("data.xlsx", "id", "id", newData, columnMapping);
+    }
+}
+
+
+
+
+
+
+
 물론입니다. 이어서 계속 작성하겠습니다.
 
 ### Excel 업데이트 함수 (계속)
