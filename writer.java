@@ -1,3 +1,222 @@
+데이터 업데이트 시 문자열 비교를 대소문자 구분 없이 수행하도록 변경하겠습니다. 다음은 수정된 CSV 및 Excel 업데이트 함수입니다.
+
+### CSV 업데이트 함수
+
+```java
+import com.opencsv.CSVReader;
+import com.opencsv.CSVWriter;
+
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.*;
+
+public class CsvUpdater {
+
+    public static void updateCsv(String filePath, String keyColumn, String comparisonKey, List<Map<String, String>> data) throws IOException {
+        List<String[]> allRows = new ArrayList<>();
+        Map<String, Integer> headerIndexMap = new HashMap<>();
+        Map<String, Integer> keyColumnValueToRowIndex = new HashMap<>();
+        
+        // Read existing CSV file
+        try (CSVReader reader = new CSVReader(new FileReader(filePath))) {
+            List<String[]> csvData = reader.readAll();
+            if (!csvData.isEmpty()) {
+                String[] header = csvData.get(0);
+                allRows.add(header);
+                for (int i = 0; i < header.length; i++) {
+                    headerIndexMap.put(header[i].toLowerCase(), i);
+                }
+
+                for (int i = 1; i < csvData.size(); i++) {
+                    String[] row = csvData.get(i);
+                    allRows.add(row);
+                    keyColumnValueToRowIndex.put(row[headerIndexMap.get(keyColumn.toLowerCase())].toLowerCase(), i);
+                }
+            }
+        }
+
+        // Add or update data
+        for (Map<String, String> row : data) {
+            String keyColumnValue = row.get(comparisonKey);
+            Integer rowIndex = keyColumnValueToRowIndex.get(keyColumnValue.toLowerCase());
+
+            if (rowIndex != null) {
+                // Update existing row
+                String[] existingRow = allRows.get(rowIndex);
+                for (Map.Entry<String, String> entry : row.entrySet()) {
+                    String columnName = entry.getKey();
+                    String value = entry.getValue();
+                    int index = headerIndexMap.getOrDefault(columnName.toLowerCase(), -1);
+                    if (index == -1) {
+                        index = headerIndexMap.size();
+                        headerIndexMap.put(columnName.toLowerCase(), index);
+                        // Resize existing rows to accommodate new column
+                        for (int i = 0; i < allRows.size(); i++) {
+                            allRows.set(i, Arrays.copyOf(allRows.get(i), headerIndexMap.size()));
+                        }
+                        allRows.get(0)[index] = columnName;
+                    }
+                    existingRow[index] = value;
+                }
+            } else {
+                // Add new row
+                String[] newRow = new String[headerIndexMap.size()];
+                for (Map.Entry<String, String> entry : row.entrySet()) {
+                    String columnName = entry.getKey();
+                    String value = entry.getValue();
+                    int index = headerIndexMap.getOrDefault(columnName.toLowerCase(), -1);
+                    if (index == -1) {
+                        index = headerIndexMap.size();
+                        headerIndexMap.put(columnName.toLowerCase(), index);
+                        // Resize existing rows to accommodate new column
+                        for (int i = 0; i < allRows.size(); i++) {
+                            allRows.set(i, Arrays.copyOf(allRows.get(i), headerIndexMap.size()));
+                        }
+                        newRow = Arrays.copyOf(newRow, headerIndexMap.size());
+                        allRows.get(0)[index] = columnName;
+                    }
+                    newRow[index] = value;
+                }
+                allRows.add(newRow);
+                keyColumnValueToRowIndex.put(keyColumnValue.toLowerCase(), allRows.size() - 1);
+            }
+        }
+
+        // Write updated data back to CSV file
+        try (CSVWriter writer = new CSVWriter(new FileWriter(filePath))) {
+            writer.writeAll(allRows);
+        }
+    }
+}
+```
+
+### Excel 업데이트 함수
+
+```java
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+public class ExcelUpdater {
+
+    public static void updateExcel(String filePath, String keyColumn, String comparisonKey, List<Map<String, String>> data) throws IOException {
+        Workbook workbook;
+        try (FileInputStream fileInputStream = new FileInputStream(filePath)) {
+            workbook = new XSSFWorkbook(fileInputStream);
+        }
+
+        Sheet sheet = workbook.getSheetAt(0);
+        Row headerRow = sheet.getRow(0);
+        if (headerRow == null) {
+            headerRow = sheet.createRow(0);
+        }
+
+        // Create header index map
+        Map<String, Integer> headerIndexMap = new HashMap<>();
+        int lastCellNum = headerRow.getLastCellNum();
+        if (lastCellNum == -1) {
+            lastCellNum = 0;
+        }
+
+        for (int i = 0; i < lastCellNum; i++) {
+            Cell cell = headerRow.getCell(i);
+            if (cell != null) {
+                headerIndexMap.put(cell.getStringCellValue().toLowerCase(), i);
+            }
+        }
+
+        // Create key column value to row index map
+        Map<String, Integer> keyColumnValueToRowIndex = new HashMap<>();
+        for (int i = 1; i <= sheet.getLastRowNum(); i++) {
+            Row row = sheet.getRow(i);
+            if (row != null) {
+                Cell cell = row.getCell(headerIndexMap.get(keyColumn.toLowerCase()));
+                if (cell != null) {
+                    keyColumnValueToRowIndex.put(cell.getStringCellValue().toLowerCase(), i);
+                }
+            }
+        }
+
+        // Add or update data
+        for (Map<String, String> rowData : data) {
+            String keyColumnValue = rowData.get(comparisonKey);
+            Integer rowIndex = keyColumnValueToRowIndex.get(keyColumnValue.toLowerCase());
+
+            if (rowIndex != null) {
+                // Update existing row
+                Row existingRow = sheet.getRow(rowIndex);
+                for (Map.Entry<String, String> entry : rowData.entrySet()) {
+                    String columnName = entry.getKey();
+                    String value = entry.getValue();
+                    int colIndex = headerIndexMap.getOrDefault(columnName.toLowerCase(), -1);
+                    if (colIndex == -1) {
+                        colIndex = headerIndexMap.size();
+                        headerIndexMap.put(columnName.toLowerCase(), colIndex);
+                        Cell headerCell = headerRow.createCell(colIndex);
+                        headerCell.setCellValue(columnName);
+                    }
+                    Cell cell = existingRow.createCell(colIndex);
+                    cell.setCellValue(value);
+                }
+            } else {
+                // Add new row
+                Row newRow = sheet.createRow(sheet.getLastRowNum() + 1);
+                for (Map.Entry<String, String> entry : rowData.entrySet()) {
+                    String columnName = entry.getKey();
+                    String value = entry.getValue();
+                    int colIndex = headerIndexMap.getOrDefault(columnName.toLowerCase(), -1);
+                    if (colIndex == -1) {
+                        colIndex = headerIndexMap.size();
+                        headerIndexMap.put(columnName.toLowerCase(), colIndex);
+                        Cell headerCell = headerRow.createCell(colIndex);
+                        headerCell.setCellValue(columnName);
+                    }
+                    Cell cell = newRow.createCell(colIndex);
+                    cell.setCellValue(value);
+                }
+                keyColumnValueToRowIndex.put(keyColumnValue.toLowerCase(), newRow.getRowNum());
+            }
+        }
+
+        // Write updated workbook to file
+        try (FileOutputStream fileOutputStream = new FileOutputStream(filePath)) {
+            workbook.write(fileOutputStream);
+        }
+        workbook.close();
+    }
+}
+```
+
+### 요약
+
+1. **CSV 업데이트 함수**:
+    - CSV 파일을 읽고 헤더와 데이터를 파싱합니다.
+    - 주어진 키 컬럼과 비교 키 값을 대소문자 구분 없이 비교하여 데이터를 업데이트하거나 새로 추가합니다.
+    - 업데이트된 데이터를 CSV 파일에 다시 씁니다.
+
+2. **Excel 업데이트 함수**:
+    - Excel 파일을 읽고 헤더와 데이터를 파싱합니다.
+    - 주어진 키 컬럼과 비교 키 값을 대소문자 구분 없이 비교하여 데이터를 업데이트하거나 새로 추가합니다.
+    - 업데이트된 데이터를 Excel 파일에 다시 씁니다.
+
+이 코드를 사용하면 `List<Map<String, String>>` 형식의 데이터를 받아 기존 CSV 또는 Excel 파일을 업데이트할 수 있습니다. 지정된 키 컬럼의 값과 `Map`의 특정 키 값을 대소문자 구분 없이 비교하여 해당 행을 업데이트하거나, 새로운 행을 추가합니다.
+
+
+
+
+
+
+
+
+
+
 기존 컬럼의 값과 `Map`의 특정 키의 값을 비교하여 데이터를 업데이트하거나 새로 추가하는 함수로 수정하겠습니다. 여기서는 `comparisonKey`라는 키의 값을 기준으로 비교하여 데이터를 업데이트합니다.
 
 ### CSV 업데이트 함수
