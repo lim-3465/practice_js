@@ -1,3 +1,133 @@
+JDK 17 버전에서 Gradle 프로젝트를 설정하는 방법을 단계별로 설명하겠습니다. 이 과정에서는 Gradle 버전 업그레이드, 환경 변수 설정, Gradle 설정 파일 수정 등을 포함합니다.
+
+### 1. Gradle Wrapper 버전 업그레이드
+Gradle 버전을 JDK 17과 호환되는 최신 버전으로 업그레이드합니다.
+
+- `gradle-wrapper.properties` 파일을 열어 Gradle 버전을 설정합니다.
+
+```properties
+# gradle-wrapper.properties
+distributionUrl=https\://services.gradle.org/distributions/gradle-7.3.3-bin.zip
+```
+
+### 2. 환경 변수 설정
+JDK 17이 설치된 경로를 환경 변수로 설정합니다.
+
+#### 리눅스
+- 환경 변수 설정 (`~/.bashrc` 또는 `~/.zshrc` 파일에 추가):
+
+```sh
+export JAVA_HOME=/path/to/your/jdk-17
+export PATH=$JAVA_HOME/bin:$PATH
+```
+
+- 변경 사항 적용:
+
+```sh
+source ~/.bashrc  # 또는 source ~/.zshrc
+```
+
+### 3. Gradle 빌드 설정
+`build.gradle` 파일에서 JDK 17을 사용하도록 설정합니다.
+
+```groovy
+plugins {
+    id 'java'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+    options.release = 17
+}
+```
+
+### 4. Jenkins에서 환경 변수 설정
+Jenkins에서 빌드를 실행할 때 JDK 17 환경 변수를 설정합니다.
+
+#### Jenkins Job 설정
+1. Jenkins 대시보드로 이동하여 설정하려는 Job을 선택합니다.
+2. **구성(Configure)**을 클릭합니다.
+3. **Build Environment** 섹션에서 **Set environment variables** 옵션을 선택합니다.
+4. 다음과 같이 환경 변수를 설정합니다:
+
+   - **Name**: JAVA_HOME
+   - **Value**: /path/to/your/jdk-17
+
+5. **Add build step**을 클릭하고 **Execute shell**을 선택합니다.
+6. 빌드 명령어를 입력합니다:
+
+```sh
+./gradlew clean build
+```
+
+### 5. 종합 Jenkinsfile 예제
+
+Jenkins 파이프라인 프로젝트를 사용하여 JDK 17에서 빌드를 실행하는 전체 예제입니다.
+
+```groovy
+pipeline {
+    agent any
+    environment {
+        JAVA_HOME = "/path/to/your/jdk-17"
+        PATH = "$JAVA_HOME/bin:$PATH"
+    }
+    stages {
+        stage('Clone') {
+            steps {
+                git 'https://github.com/yourusername/your-repo.git'
+            }
+        }
+        stage('Build') {
+            steps {
+                sh './gradlew clean build'
+            }
+        }
+        stage('Test') {
+            steps {
+                sh './gradlew test'
+            }
+        }
+        stage('Deploy') {
+            steps {
+                // 배포 스크립트를 여기에 추가합니다.
+            }
+        }
+    }
+    post {
+        success {
+            echo 'Build succeeded!'
+        }
+        failure {
+            echo 'Build failed!'
+        }
+    }
+}
+```
+
+### 요약
+1. **Gradle Wrapper 버전 업그레이드**: `gradle-wrapper.properties` 파일에서 Gradle 버전을 최신 버전으로 설정합니다.
+2. **환경 변수 설정**: `JAVA_HOME` 환경 변수를 JDK 17 경로로 설정하고 `PATH`에 추가합니다.
+3. **Gradle 빌드 설정**: `build.gradle` 파일에서 JDK 17을 사용하도록 설정합니다.
+4. **Jenkins 환경 변수 설정**: Jenkins Job 설정에서 `JAVA_HOME` 환경 변수를 설정하고 빌드 스크립트를 작성합니다.
+5. **종합 Jenkinsfile 작성**: 파이프라인 프로젝트를 사용하여 JDK 17에서 빌드를 실행하는 Jenkinsfile을 작성합니다.
+
+이 단계를 따르면 JDK 17을 사용하는 Gradle 프로젝트를 설정하고 Jenkins에서 빌드를 실행할 수 있습니다.
+
+
+
+
+
+
+
+
+
+
+
 네, `comparisonKey`와 `keyColumn` 값을 비교할 때 대소문자 구분 없이 처리하도록 수정하겠습니다. 
 
 ### CSV 업데이트 함수
