@@ -1,3 +1,63 @@
+import java.util.*;
+
+public class ValueCounter {
+    public static void main(String[] args) {
+        // Example data
+        List<Map<String, String>> dataList = new ArrayList<>();
+        
+        Map<String, String> map1 = new HashMap<>();
+        map1.put("key1", "value1");
+        map1.put("key2", "valueA");
+        dataList.add(map1);
+        
+        Map<String, String> map2 = new HashMap<>();
+        map2.put("key1", "value2");
+        map2.put("key2", "valueB");
+        dataList.add(map2);
+        
+        Map<String, String> map3 = new HashMap<>();
+        map3.put("key1", "value1");
+        map3.put("key2", "valueA");
+        dataList.add(map3);
+
+        // Count the occurrences of values for a specific key
+        String keyToCount = "key1";
+        List<Map<String, Integer>> valueCountsList = countValues(dataList, keyToCount);
+
+        // Print the result
+        for (Map<String, Integer> entry : valueCountsList) {
+            for (Map.Entry<String, Integer> e : entry.entrySet()) {
+                System.out.println("Value: " + e.getKey() + ", Count: " + e.getValue());
+            }
+        }
+    }
+
+    public static List<Map<String, Integer>> countValues(List<Map<String, String>> dataList, String key) {
+        Map<String, Integer> valueCounts = new HashMap<>();
+
+        for (Map<String, String> map : dataList) {
+            String value = map.get(key);
+            if (value != null) {
+                valueCounts.put(value, valueCounts.getOrDefault(value, 0) + 1);
+            }
+        }
+
+        List<Map<String, Integer>> result = new ArrayList<>();
+        for (Map.Entry<String, Integer> entry : valueCounts.entrySet()) {
+            Map<String, Integer> countMap = new HashMap<>();
+            countMap.put(entry.getKey(), entry.getValue());
+            result.add(countMap);
+        }
+
+        return result;
+    }
+}
+
+
+
+
+
+
 JDK 17 버전에서 Gradle 프로젝트를 설정하는 방법을 단계별로 설명하겠습니다. 이 과정에서는 Gradle 버전 업그레이드, 환경 변수 설정, Gradle 설정 파일 수정 등을 포함합니다.
 
 ### 1. Gradle Wrapper 버전 업그레이드
