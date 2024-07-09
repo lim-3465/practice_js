@@ -1,3 +1,171 @@
+기존의 Excel 파일에서 특정 컬럼의 값을 참조하여, 해당 값과 `List<Map<String, Integer>>`의 데이터 중 특정 키의 값이 같으면 해당 행에 데이터를 추가하는 예제를 작성해 보겠습니다.
+
+### 필요 라이브러리 추가 (Maven)
+
+먼저, Apache POI 라이브러리를 프로젝트에 추가합니다.
+
+```xml
+<dependency>
+    <groupId>org.apache.poi</groupId>
+    <artifactId>poi-ooxml</artifactId>
+    <version>5.2.3</version>
+</dependency>
+```
+
+### 예제 코드
+
+다음은 특정 컬럼의 값을 참조하여 데이터를 추가하는 예제입니다.
+
+```java
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.*;
+
+public class ExcelWriter {
+    public static void main(String[] args) throws IOException {
+        // Example data
+        List<Map<String, Integer>> valueCountsList = new ArrayList<>();
+
+        Map<String, Integer> map1 = new HashMap<>();
+        map1.put("id", 1);
+        map1.put("value1", 2);
+        map1.put("value2", 1);
+        valueCountsList.add(map1);
+
+        Map<String, Integer> map2 = new HashMap<>();
+        map2.put("id", 2);
+        map2.put("value1", 3);
+        map2.put("value2", 4);
+        valueCountsList.add(map2);
+
+        // Path to the existing Excel file
+        String inputFilePath = "path/to/existing_excel_file.xlsx";
+
+        // Write the data to the existing Excel file
+        writeDataToExistingExcel(valueCountsList, inputFilePath, "id", "targetColumn");
+    }
+
+    public static void writeDataToExistingExcel(List<Map<String, Integer>> dataList, String filePath, String mapKey, String targetColumn) throws IOException {
+        FileInputStream fileInputStream = new FileInputStream(filePath);
+        Workbook workbook = new XSSFWorkbook(fileInputStream);
+        Sheet sheet = workbook.getSheetAt(0); // Assuming data is written to the first sheet
+
+        // Create a map of column indices
+        Map<String, Integer> columnIndices = new HashMap<>();
+        Row headerRow = sheet.getRow(0);
+        if (headerRow == null) {
+            headerRow = sheet.createRow(0);
+        }
+
+        // Determine column indices from header row
+        for (int i = 0; i < headerRow.getLastCellNum(); i++) {
+            Cell cell = headerRow.getCell(i);
+            if (cell != null) {
+                columnIndices.put(cell.getStringCellValue(), i);
+            }
+        }
+
+        // Write the data to the sheet
+        for (Map<String, Integer> dataMap : dataList) {
+            if (!dataMap.containsKey(mapKey)) {
+                continue;
+            }
+
+            Integer mapValue = dataMap.get(mapKey);
+
+            // Find the row with the matching targetColumn value
+            for (int rowNum = 1; rowNum <= sheet.getLastRowNum(); rowNum++) {
+                Row row = sheet.getRow(rowNum);
+                if (row == null) {
+                    continue;
+                }
+                Cell targetCell = row.getCell(columnIndices.get(targetColumn));
+                if (targetCell != null && targetCell.getCellType() == CellType.NUMERIC && targetCell.getNumericCellValue() == mapValue) {
+                    // Write the map data to the row
+                    for (Map.Entry<String, Integer> entry : dataMap.entrySet()) {
+                        String key = entry.getKey();
+                        Integer value = entry.getValue();
+
+                        // Skip the mapKey entry since it's already used for matching
+                        if (key.equals(mapKey)) {
+                            continue;
+                        }
+
+                        // Get or create the column index for this key
+                        int colIndex;
+                        if (columnIndices.containsKey(key)) {
+                            colIndex = columnIndices.get(key);
+                        } else {
+                            colIndex = headerRow.getLastCellNum();
+                            Cell newHeaderCell = headerRow.createCell(colIndex);
+                            newHeaderCell.setCellValue(key);
+                            columnIndices.put(key, colIndex);
+                        }
+
+                        // Write the value to the cell
+                        Cell cell = row.createCell(colIndex);
+                        cell.setCellValue(value);
+                    }
+                }
+            }
+        }
+
+        fileInputStream.close(); // Close the input stream
+
+        try (FileOutputStream fileOut = new FileOutputStream(filePath)) {
+            workbook.write(fileOut);
+        }
+
+        workbook.close();
+    }
+}
+```
+
+### 코드 설명
+
+1. **데이터 준비**:
+   - `List<Map<String, Integer>>` 형식의 데이터를 준비합니다.
+   - 각 `Map`은 키-값 쌍으로 구성되며, 특정 키(`id`)는 참조에 사용되고 나머지 키-값은 Excel에 작성됩니다.
+
+2. **기존 Excel 파일 열기**:
+   - `FileInputStream`을 사용하여 기존의 Excel 파일을 엽니다.
+   - `Workbook` 객체를 생성하고, 첫 번째 시트를 선택합니다.
+
+3. **컬럼 인덱스 매핑**:
+   - 첫 번째 행을 읽어 각 컬럼 이름의 인덱스를 매핑합니다.
+   - 새로운 컬럼이 발견되면, 첫 번째 행에 해당 컬럼을 추가하고 인덱스를 매핑합니다.
+
+4. **데이터 추가**:
+   - `sheet.getLastRowNum()`을 사용하여 기존 데이터의 마지막 행을 찾습니다.
+   - `dataList`에서 각 `Map`을 순회하면서, 각 키-값 쌍을 해당 컬럼에 추가합니다.
+   - 특정 키(`id`)와 Excel의 특정 컬럼(`targetColumn`) 값을 비교하여, 값이 같으면 해당 행에 데이터를 추가합니다.
+
+5. **Excel 파일 저장**:
+   - `FileOutputStream`을 사용하여 Excel 파일을 저장합니다.
+   - 작업이 끝난 후 `Workbook`과 `FileInputStream`을 닫아 리소스를 해제합니다.
+
+### 실행 결과
+
+위의 예제 코드를 실행하면 기존의 Excel 파일에 새로운 데이터가 추가됩니다. 각 `Map`의 `id` 값과 Excel의 `targetColumn` 값이 일치하는 경우, 해당 행에 데이터를 추가합니다.
+
+기존 Excel 파일의 내용은 다음과 같이 업데이트됩니다:
+
+| id  | targetColumn | value1 | value2 |
+|-----|--------------|--------|--------|
+| 1   | ...          | 2      | 1      |
+| 2   | ...          | 3      | 4      |
+
+이 코드는 `List<Map<String, Integer>>` 데이터를 기존 Excel 파일에 추가하는 방법을 보여줍니다. 필요한 경우, `filePath`, `mapKey`, `targetColumn` 값을 변경하여 다른 경로의 파일에 데이터를 추가할 수 있습니다.
+
+
+
+
+
+
 import java.util.*;
 
 public class ValueCounter {
