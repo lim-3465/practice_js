@@ -1,3 +1,126 @@
+MyBatis에서 `@Options` 어노테이션을 사용하여 `useGeneratedKeys` 옵션을 설정하면, 데이터베이스에서 자동으로 생성된 키 값을 MyBatis가 받아올 수 있습니다. 그러나, Oracle 데이터베이스에서는 일반적으로 자동으로 생성된 키 값을 받기 위해 시퀀스를 사용합니다. 
+
+Oracle에서 `id`를 자동으로 생성하려면 시퀀스를 생성하고, 삽입 시 시퀀스 값을 사용해야 합니다.
+
+### 1. 시퀀스 생성
+
+먼저 Oracle 데이터베이스에서 시퀀스를 생성합니다. 이는 `schema.sql` 파일에 추가할 수 있습니다.
+
+#### schema.sql
+
+```sql
+CREATE SEQUENCE emp_seq
+START WITH 1
+INCREMENT BY 1
+NOCACHE
+NOCYCLE;
+
+CREATE TABLE employees (
+    id NUMBER PRIMARY KEY,
+    name VARCHAR2(100) NOT NULL,
+    email VARCHAR2(100) UNIQUE,
+    department_id NUMBER,
+    hire_date DATE
+);
+```
+
+### 2. MyBatis 매퍼 인터페이스
+
+매퍼 인터페이스에서 시퀀스를 사용하여 ID를 자동으로 생성하는 방법을 설정합니다.
+
+#### EmployeeMapper.java
+
+```java
+package com.example.demo.mapper;
+
+import com.example.demo.domain.Employee;
+import org.apache.ibatis.annotations.*;
+
+import java.util.List;
+
+@Mapper
+public interface EmployeeMapper {
+
+    @Select("SELECT * FROM employees WHERE id = #{id}")
+    Employee findById(Long id);
+
+    @Select("SELECT * FROM employees")
+    List<Employee> findAll();
+
+    @Insert("INSERT INTO employees (id, name, email, department_id, hire_date) " +
+            "VALUES (emp_seq.NEXTVAL, #{name}, #{email}, #{departmentId}, #{hireDate})")
+    @Options(useGeneratedKeys = true, keyProperty = "id", keyColumn = "id")
+    void insert(Employee employee);
+
+    @Update("UPDATE employees SET name=#{name}, email=#{email}, department_id=#{departmentId}, hire_date=#{hireDate} WHERE id=#{id}")
+    void update(Employee employee);
+
+    @Delete("DELETE FROM employees WHERE id=#{id}")
+    void delete(Long id);
+}
+```
+
+### 3. MyBatis 매퍼 XML 파일
+
+매퍼 XML 파일에서도 동일하게 설정할 수 있습니다.
+
+#### EmployeeMapper.xml
+
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.demo.mapper.EmployeeMapper">
+    <resultMap id="EmployeeResultMap" type="com.example.demo.domain.Employee">
+        <id column="id" property="id" />
+        <result column="name" property="name" />
+        <result column="email" property="email" />
+        <result column="department_id" property="departmentId" />
+        <result column="hire_date" property="hireDate" />
+    </resultMap>
+
+    <select id="findById" resultMap="EmployeeResultMap">
+        SELECT * FROM employees WHERE id = #{id}
+    </select>
+
+    <select id="findAll" resultMap="EmployeeResultMap">
+        SELECT * FROM employees
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO employees (id, name, email, department_id, hire_date)
+        VALUES (emp_seq.NEXTVAL, #{name}, #{email}, #{departmentId}, #{hireDate})
+    </insert>
+
+    <update id="update">
+        UPDATE employees
+        SET name=#{name}, email=#{email}, department_id=#{departmentId}, hire_date=#{hireDate}
+        WHERE id=#{id}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM employees WHERE id=#{id}
+    </delete>
+</mapper>
+```
+
+### 요약
+
+- Oracle에서 자동으로 `id` 값을 생성하려면 시퀀스를 생성합니다.
+- MyBatis 매퍼 인터페이스와 XML 파일에서 삽입 시 시퀀스를 사용하여 ID를 자동으로 생성하도록 설정합니다.
+- `@Options` 어노테이션과 `useGeneratedKeys` 옵션을 사용하여 자동 생성된 키 값을 받아옵니다.
+
+이 설정을 통해 Oracle 데이터베이스에서 `id` 값이 `NULL`일 때 시퀀스를 사용하여 자동으로 ID를 생성하고, MyBatis를 통해 이를 처리할 수 있습니다.
+
+
+
+
+
+
+
+
 기존의 Excel 파일에서 특정 컬럼의 값을 참조하여, 해당 값과 `List<Map<String, Integer>>`의 데이터 중 특정 키의 값이 같으면 해당 행에 데이터를 추가하는 예제를 작성해 보겠습니다.
 
 ### 필요 라이브러리 추가 (Maven)
