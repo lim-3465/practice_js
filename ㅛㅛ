@@ -1,0 +1,149 @@
+`INSERT INTO ... VALUES` 구문에서 **`UNION ALL`**을 사용하는 방식으로 변경하려면, `VALUES` 부분을 **개별 쿼리**로 나누어 처리하고 이를 **`UNION ALL`**로 연결해야 합니다. 이 방법은 대량 데이터를 한번에 삽입할 때 유용하며, Oracle DB에서 성능을 개선하는데 도움이 될 수 있습니다.
+
+### 1. **Java 코드: 변경 없음**
+
+**Java 코드**는 그대로 유지하면서 **MyBatis XML 파일**에서만 쿼리 부분을 수정합니다. Java 코드에서 **리스트 데이터를 서브리스트로 나누어** `Map`에 담고, MyBatis로 전달하는 부분은 변하지 않습니다.
+
+#### `MyRepository.java`
+
+```java
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public class MyRepository {
+
+    @Autowired
+    private MyMapper myMapper;
+
+    public void insertLargeList(List<MyEntity> entityList) {
+        int batchSize = 4000;
+        int totalSize = entityList.size();
+
+        for (int i = 0; i < totalSize; i += batchSize) {
+            // 4000개씩 리스트를 잘라서 subList로 처리
+            List<MyEntity> subList = entityList.subList(i, Math.min(i + batchSize, totalSize));
+
+            // Map에 리스트를 넣어 전달
+            Map<String, Object> paramMap = new HashMap<>();
+            paramMap.put("list", subList);
+
+            // MyBatis Mapper 호출
+            myMapper.insertEntities(paramMap);
+        }
+    }
+}
+```
+
+### 2. **MyBatis XML 파일 수정**
+
+여기서 **`UNION ALL`**을 사용하여 다수의 `INSERT` 문을 하나의 쿼리로 처리합니다. **리스트 데이터를 반복**하면서 각 데이터를 `INSERT`의 한 부분으로 처리하고, 이를 **`UNION ALL`**로 연결합니다.
+
+#### 예시: **`MyMapper.xml`** (변경된 XML 설정)
+
+```xml
+<mapper namespace="com.example.mapper.MyMapper">
+
+    <!-- 사용자 정의 객체 리스트 삽입 (UNION ALL 사용) -->
+    <insert id="insertEntities" parameterType="map">
+        INSERT ALL
+        <foreach collection="list" item="item" index="index" separator=" ">
+            INTO my_table (column1, column2, column3)
+            VALUES (#{item.field1}, #{item.field2}, #{item.field3})
+        </foreach>
+        SELECT 1 FROM DUAL
+    </insert>
+
+</mapper>
+```
+
+### 3. **`UNION ALL` 대신 `INSERT ALL`을 사용한 이유**
+
+- **`INSERT ALL`** 구문은 **Oracle의 배치 처리**에서 사용하는 방식입니다. 
+- **`UNION ALL`**과 비슷한 방식으로 여러 `INSERT` 구문을 처리할 수 있습니다.
+- **Oracle DB**에서 **`INSERT ALL`**은 **한 번의 쿼리로 여러 행을 삽입**하는 데 사용됩니다.
+- 마지막에 `SELECT 1 FROM DUAL`을 추가해야 쿼리가 올바르게 동작합니다.
+
+### 4. **테이블 설정 (Oracle)**
+
+Oracle DB에 맞춰 테이블을 생성합니다. 이 테이블은 **ID 컬럼 없이** 나머지 컬럼만 데이터를 삽입할 수 있도록 설정됩니다.
+
+#### 오라클 DB에서 테이블 생성 예시:
+
+```sql
+-- 테이블 생성 (ID 없이)
+CREATE TABLE my_table (
+    column1 VARCHAR2(100),
+    column2 VARCHAR2(100),
+    column3 VARCHAR2(100)
+);
+```
+
+- **`my_table`**: 3개의 컬럼으로 구성된 테이블이며, **ID는 사용하지 않음**.
+
+### 5. **Oracle 설정 (`application.yml` 또는 `application.properties`)**
+
+Oracle DB에 연결하기 위한 설정을 **`application.yml`** 또는 **`application.properties`**에 추가합니다.
+
+#### `application.yml` 예시:
+
+```yaml
+spring:
+  datasource:
+    url: jdbc:oracle:thin:@localhost:1521:xe
+    username: your_username
+    password: your_password
+    driver-class-name: oracle.jdbc.OracleDriver
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: true
+```
+
+#### `application.properties` 예시:
+
+```properties
+spring.datasource.url=jdbc:oracle:thin:@localhost:1521:xe
+spring.datasource.username=your_username
+spring.datasource.password=your_password
+spring.datasource.driver-class-name=oracle.jdbc.OracleDriver
+spring.jpa.hibernate.ddl-auto=none
+spring.jpa.show-sql=true
+```
+
+### 6. **디버깅 및 테스트**
+
+**리스트 데이터를 제대로 전달**했는지, **사용자 정의 객체의 필드 값이 올바르게 매핑**되었는지 확인하려면, **디버깅**을 통해 `subList`와 `paramMap`의 내용을 확인할 수 있습니다.
+
+#### 디버깅 예시:
+
+```java
+public void insertLargeList(List<MyEntity> entityList) {
+    int batchSize = 4000;
+    int totalSize = entityList.size();
+
+    for (int i = 0; i < totalSize; i += batchSize) {
+        List<MyEntity> subList = entityList.subList(i, Math.min(i + batchSize, totalSize));
+
+        Map<String, Object> paramMap = new HashMap<>();
+        paramMap.put("list", subList);
+
+        // 디버깅용 로그 출력
+        System.out.println("SubList: " + subList);
+        System.out.println("ParamMap: " + paramMap);
+
+        // MyBatis Mapper 호출
+        myMapper.insertEntities(paramMap);
+    }
+}
+```
+
+### 7. **결론**
+
+1. **Oracle DB의 `INSERT ALL`**을 사용하여 **여러 행을 한 번에 삽입**할 수 있습니다. 이 방식은 성능을 개선할 수 있습니다.
+2. **`UNION ALL`**과 유사하게 여러 `INSERT` 구문을 처리하지만, **Oracle에서는 `INSERT ALL`**이 더 적합합니다.
+3. 마지막에 **`SELECT 1 FROM DUAL`**을 추가하여 쿼리가 정상적으로 실행되도록 설정해야 합니다.
+4. **테스트와 디버깅**을 통해 데이터가 제대로 삽입되는지 확인합니다.
