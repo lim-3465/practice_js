@@ -1,3 +1,109 @@
+AG Grid에서 컬럼 사이에 선을 추가하고, 데이터 길이에 맞게 자동으로 열 맞춤을 하려면, 몇 가지 설정을 적용해야 합니다. 아래에서 각각의 요구사항을 해결하는 방법을 설명하겠습니다.
+
+1. 컬럼 사이에 선 추가하기 (Column Separator)
+
+AG Grid에서 컬럼 사이에 구분선을 추가하려면, 그리드에 기본 스타일을 적용하거나 CSS로 직접 스타일링할 수 있습니다.
+
+방법 1: AG Grid 자체 스타일 사용
+
+gridOptions에 있는 rowStyle 또는 **rowClass**를 사용하여 테이블에 스타일을 지정할 수 있습니다. 하지만 이 방식으로는 정확한 컬럼 사이의 선을 설정하기 어렵기 때문에 CSS로 직접 추가하는 것이 가장 일반적인 방법입니다.
+
+방법 2: CSS로 컬럼 사이에 선 추가
+
+AG Grid에서 각 셀에 테두리를 주어 컬럼 사이의 선을 구현할 수 있습니다. ag-theme를 사용하는 동안 cell 클래스에 border-right를 추가해줄 수 있습니다.
+
+/* 스타일로 각 셀 사이에 구분선을 넣음 */
+.ag-theme-alpine .ag-cell {
+  border-right: 1px solid #ddd; /* 컬럼 사이에 선 */
+}
+
+.ag-theme-alpine .ag-header-cell {
+  border-right: 1px solid #ddd; /* 헤더에도 동일한 구분선 추가 */
+}
+
+이렇게 하면 각 셀과 헤더 사이에 선이 들어가서 컬럼 구분을 쉽게 볼 수 있습니다.
+
+2. 데이터 길이에 맞게 자동 열 맞춤 (Auto Column Resize)
+
+AG Grid에서 열을 데이터 길이에 맞게 자동으로 조정하는 기능은 autoSizeColumns 기능을 사용하여 구현할 수 있습니다. 이 기능을 사용하면, 각 열의 데이터를 기준으로 열의 너비를 자동으로 맞출 수 있습니다.
+
+자동 열 맞춤 설정 방법:
+
+	1.	onFirstDataRendered 이벤트를 사용하여 첫 번째 데이터가 렌더링될 때 자동으로 열 크기를 조정합니다.
+	2.	api.sizeColumnsToFit()은 그리드의 전체 너비에 맞게 조정하지만, 각 열에 맞추어 너비를 자동으로 맞추려면 autoSizeColumns() 메서드를 사용합니다.
+
+import React, { useRef } from 'react';
+import { AgGridReact } from 'ag-grid-react';
+import 'ag-grid-community/styles/ag-grid.css';
+import 'ag-grid-community/styles/ag-theme-alpine.css';
+
+const MyGrid = () => {
+  const gridRef = useRef(null);
+
+  const columnDefs = [
+    { field: 'name' },
+    { field: 'age' },
+    { field: 'address' },
+  ];
+
+  const rowData = [
+    { name: 'John Doe', age: 25, address: '1234 Long Street Name' },
+    { name: 'Jane Smith', age: 30, address: '5678 Another Long Address' },
+    { name: 'Michael Johnson', age: 35, address: 'This is a much longer address than usual' },
+  ];
+
+  // 데이터 렌더링 후 자동으로 열 크기 맞추기
+  const onFirstDataRendered = (params) => {
+    // 특정 열에 맞추기: 모든 열의 너비를 데이터에 맞추어 자동 조정
+    const allColumnIds = params.columnApi.getAllColumns().map(col => col.getId());
+    params.columnApi.autoSizeColumns(allColumnIds);
+  };
+
+  return (
+    <div className="ag-theme-alpine" style={{ height: 400, width: '100%' }}>
+      <AgGridReact
+        ref={gridRef}
+        columnDefs={columnDefs}
+        rowData={rowData}
+        onFirstDataRendered={onFirstDataRendered}  // 첫 데이터 렌더링 후 호출
+      />
+    </div>
+  );
+};
+
+export default MyGrid;
+
+설명:
+
+	1.	onFirstDataRendered: 그리드가 처음으로 데이터를 렌더링할 때 호출됩니다. 여기서 autoSizeColumns() 메서드를 사용해 각 열의 크기를 자동으로 조정합니다.
+	2.	params.columnApi.getAllColumns(): 그리드에 있는 모든 열의 ID를 가져옵니다.
+	3.	autoSizeColumns(): 열의 너비를 데이터의 최대 길이에 맞춰 자동으로 설정해 줍니다.
+
+이 코드를 적용하면 각 열이 해당 열의 데이터 길이에 맞춰 자동으로 크기가 조정됩니다.
+
+3. sizeColumnsToFit() vs autoSizeColumns()
+
+	•	sizeColumnsToFit(): 전체 그리드의 너비에 맞춰 열의 크기를 조정합니다. 즉, 그리드 너비에 맞춰 열이 고르게 분배됩니다.
+	•	autoSizeColumns(): 각 열의 데이터 길이에 맞춰 열의 크기를 조정합니다. 열마다 크기가 다르게 설정됩니다.
+
+결론:
+
+	1.	컬럼 사이에 선을 추가하려면 CSS를 사용하여 .ag-cell에 border-right 속성을 추가하면 됩니다.
+	2.	데이터 길이에 맞게 열을 자동으로 조정하려면, autoSizeColumns() 메서드를 사용하여 데이터를 렌더링한 후 열의 크기를 자동으로 맞출 수 있습니다.
+	3.	onFirstDataRendered 이벤트 핸들러를 사용하여 그리드가 데이터를 렌더링한 후 자동으로 열 크기를 맞추도록 설정할 수 있습니다.
+
+이 방법을 사용하면 AG Grid에서 열 사이에 구분선을 표시하고, 데이터의 길이에 따라 열의 크기가 자동으로 맞춰지도록 할 수 있습니다.
+
+
+
+
+
+
+
+
+
+
+
 `INSERT INTO ... VALUES` 구문에서 **`UNION ALL`**을 사용하는 방식으로 변경하려면, `VALUES` 부분을 **개별 쿼리**로 나누어 처리하고 이를 **`UNION ALL`**로 연결해야 합니다. 이 방법은 대량 데이터를 한번에 삽입할 때 유용하며, Oracle DB에서 성능을 개선하는데 도움이 될 수 있습니다.
 
 ### 1. **Java 코드: 변경 없음**
