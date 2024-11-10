@@ -1,3 +1,144 @@
+롤(Role)별로 메뉴나 화면을 컨트롤하려면 액세스 토큰에 포함된 롤 정보를 확인하고 이를 기반으로 UI 요소를 조건부 렌더링하는 방법이 효과적입니다. 액세스 토큰에 롤 정보가 포함되어 있다면, 다음과 같은 방식으로 사용자의 권한을 확인하고 UI를 제어할 수 있습니다.
+
+1. 액세스 토큰에서 롤 정보 파싱하기
+
+먼저, **액세스 토큰에 포함된 클레임(claim)**에서 롤 정보를 확인해야 합니다. 보통 JWT(Json Web Token) 기반의 액세스 토큰을 사용하며, 토큰에는 roles 또는 scope와 같은 클레임이 롤 정보를 담고 있습니다.
+
+예: 액세스 토큰에서 롤 정보 추출
+
+액세스 토큰을 디코딩하여 특정 클레임에 접근할 수 있습니다. 아래 예제는 JWT 라이브러리를 사용해 토큰을 디코딩하고, 사용자의 롤 정보를 추출하는 방법입니다.
+
+import jwtDecode from "jwt-decode";
+
+// JWT 토큰을 디코딩하고 roles 클레임을 추출
+function getRolesFromToken(token) {
+  try {
+    const decoded = jwtDecode(token);
+    return decoded.roles || [];  // 토큰에서 roles 클레임을 추출
+  } catch (error) {
+    console.error("Invalid token:", error);
+    return [];
+  }
+}
+
+2. 롤 정보에 따라 UI 조건부 렌더링
+
+리액트 컴포넌트에서 롤에 따라 메뉴나 화면을 조건부 렌더링하여 접근을 제어합니다. 예를 들어, 사용자의 롤이 admin일 때만 특정 메뉴를 표시하거나, 특정 페이지에 접근하도록 설정할 수 있습니다.
+
+import React from "react";
+
+function MyComponent({ token }) {
+  const roles = getRolesFromToken(token);
+
+  return (
+    <div>
+      <h1>Welcome</h1>
+
+      {/* 'admin' 롤이 있을 경우, 관리자 메뉴를 표시 */}
+      {roles.includes("admin") && (
+        <div>
+          <h2>Admin Menu</h2>
+          <ul>
+            <li>Manage Users</li>
+            <li>System Settings</li>
+          </ul>
+        </div>
+      )}
+
+      {/* 'user' 롤이 있을 경우, 사용자 메뉴를 표시 */}
+      {roles.includes("user") && (
+        <div>
+          <h2>User Menu</h2>
+          <ul>
+            <li>My Profile</li>
+            <li>My Orders</li>
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default MyComponent;
+
+3. 전체 화면 접근 제어
+
+React Router와 같은 라우팅 라이브러리를 사용하여 페이지 단위로 접근을 제어할 수도 있습니다. 특정 페이지나 화면이 특정 롤에만 허용되도록 설정할 수 있습니다.
+
+import React from "react";
+import { BrowserRouter as Router, Route, Redirect } from "react-router-dom";
+
+// ProtectedRoute 컴포넌트: 특정 롤이 없으면 접근을 차단
+function ProtectedRoute({ roles, token, children, ...rest }) {
+  const userRoles = getRolesFromToken(token);
+  const hasAccess = roles.some(role => userRoles.includes(role));
+
+  return (
+    <Route
+      {...rest}
+      render={() => (hasAccess ? children : <Redirect to="/no-access" />)}
+    />
+  );
+}
+
+function App() {
+  const token = localStorage.getItem("access_token"); // 토큰을 가져옴
+
+  return (
+    <Router>
+      <Route exact path="/" component={Home} />
+
+      {/* admin 롤이 필요 */}
+      <ProtectedRoute path="/admin" roles={["admin"]} token={token}>
+        <AdminPage />
+      </ProtectedRoute>
+
+      {/* user 롤이 필요 */}
+      <ProtectedRoute path="/profile" roles={["user"]} token={token}>
+        <ProfilePage />
+      </ProtectedRoute>
+    </Router>
+  );
+}
+
+export default App;
+
+4. 서버 측 검증 (백엔드와 연동 시)
+
+	•	백엔드에서 권한 확인: 클라이언트에서 화면을 제어하는 것 외에도, 백엔드에서 요청마다 롤을 확인해 적절한 권한이 있는지 검증하는 것이 중요합니다.
+	•	Spring Security 설정: 백엔드(Spring Boot)에서 Spring Security와 JWT를 사용하여 API 접근 시 토큰의 롤을 검증할 수 있습니다.
+
+import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+
+@Configuration
+@EnableGlobalMethodSecurity(prePostEnabled = true)
+public class SecurityConfig extends WebSecurityConfigurerAdapter {
+    // Spring Security 설정
+}
+
+// API 엔드포인트에서 롤별 접근 제어
+@RestController
+public class AdminController {
+
+    @GetMapping("/admin")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
+    public String adminOnlyEndpoint() {
+        return "Hello Admin!";
+    }
+}
+
+요약
+
+	1.	토큰에서 롤 정보 추출: jwtDecode 라이브러리 등을 이용해 액세스 토큰을 디코딩하고 롤 정보를 추출합니다.
+	2.	롤에 따라 조건부 렌더링: UI 요소(메뉴, 페이지)를 롤에 따라 조건부 렌더링하여 필요한 경우에만 표시합니다.
+	3.	페이지 접근 제한: React Router와 ProtectedRoute를 사용해 특정 롤이 없는 경우 페이지 접근을 제한합니다.
+	4.	백엔드와의 통합: 백엔드(Spring Boot)에서 Spring Security와 JWT를 사용해 API 요청을 보호하고, 롤을 확인해 서버 측에서 권한을 검증합니다.
+
+이렇게 하면 프론트엔드와 백엔드에서 사용자 롤에 따라 안전하게 접근 권한을 제어할 수 있습니다.
+
+
+
 Spring Boot 애플리케이션에 SSL/TLS 인증서를 적용하여 HTTPS를 지원하는 방법을 설명하겠습니다. SSL/TLS를 적용하면 애플리케이션과 클라이언트 간의 통신이 암호화되어, 전송되는 데이터의 보안을 강화할 수 있습니다.
 
 ### 1. SSL/TLS 인증서 준비
