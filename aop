@@ -1,3 +1,165 @@
+Access Token을 통해 사용자 정보를 인증하고, 이를 프론트엔드와 백엔드에서 활용하는 방법을 설명하겠습니다. 특히, Access Token을 파싱하여 사용자 이름, 이메일, 역할(role) 등의 정보를 추출하는 방법을 다루겠습니다. JWT(JSON Web Token)를 Access Token으로 사용하는 경우, 이를 통해 손쉽게 인증 및 정보를 추출할 수 있습니다.
+
+1. Access Token을 Certificate로 분해하여 사용자 정보 추출 (백엔드)
+
+Access Token이 JWT 형식이라면, 이를 디코딩하여 사용자 정보를 추출할 수 있습니다. Spring Boot에서 JWT를 파싱하려면 java-jwt 라이브러리를 사용하여 간단하게 구현할 수 있습니다.
+
+1.1 JWT 토큰을 파싱하여 사용자 정보 추출
+
+import com.auth0.jwt.JWT;
+import com.auth0.jwt.algorithms.Algorithm;
+import com.auth0.jwt.interfaces.DecodedJWT;
+import org.springframework.stereotype.Service;
+import java.util.Map;
+
+@Service
+public class TokenParserService {
+
+    private final String SECRET_KEY = "your-secret-key"; // 실제 키로 대체해야 함
+
+    public Map<String, String> parseToken(String accessToken) {
+        DecodedJWT jwt = JWT.require(Algorithm.HMAC256(SECRET_KEY))
+                            .build()
+                            .verify(accessToken);
+
+        String username = jwt.getClaim("name").asString();
+        String email = jwt.getClaim("email").asString();
+        String role = jwt.getClaim("role").asString();
+
+        return Map.of(
+            "name", username,
+            "email", email,
+            "role", role
+        );
+    }
+}
+
+위의 코드에서는 java-jwt 라이브러리를 사용하여 Access Token을 디코딩합니다. JWT가 검증되면 name, email, role 등의 클레임 정보를 추출할 수 있습니다.
+
+1.2 TokenParserService를 통해 사용자 정보 활용
+
+이제 TokenParserService를 사용해 파싱된 사용자 정보를 얻고, 이 정보를 API 응답으로 제공하거나 필요한 인증 및 인가 로직에 사용할 수 있습니다.
+
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RestController;
+import java.util.Map;
+
+@RestController
+public class UserInfoController {
+
+    private final TokenParserService tokenParserService;
+
+    public UserInfoController(TokenParserService tokenParserService) {
+        this.tokenParserService = tokenParserService;
+    }
+
+    @GetMapping("/api/userinfo")
+    public Map<String, String> getUserInfo(@RequestHeader("Authorization") String token) {
+        String accessToken = token.replace("Bearer ", "");
+        return tokenParserService.parseToken(accessToken);
+    }
+}
+
+이제 /api/userinfo 엔드포인트는 Access Token을 받아 사용자 이름, 이메일, 역할 정보를 클라이언트에 반환합니다.
+
+2. 프론트엔드에서 Access Token 로그인 및 사용자 정보 요청 (React)
+
+프론트엔드에서는 백엔드에서 발급된 Access Token을 localStorage에 저장하여 인증에 사용하고, 필요한 경우 /api/userinfo 엔드포인트를 통해 사용자 정보를 요청합니다.
+
+2.1 Access Token 발급 및 저장
+
+// authService.js
+import axios from 'axios';
+
+export const loginWithToken = async (username, password) => {
+  try {
+    const response = await axios.post('/api/login', { username, password });
+    const accessToken = response.data.accessToken;
+    localStorage.setItem('accessToken', accessToken);
+    return accessToken;
+  } catch (error) {
+    console.error('Login failed:', error);
+    throw error;
+  }
+};
+
+위의 코드에서 /api/login 엔드포인트를 통해 사용자 인증을 요청하고, 응답으로 받은 Access Token을 localStorage에 저장합니다.
+
+2.2 Access Token을 이용해 사용자 정보 요청
+
+// userService.js
+import axios from 'axios';
+
+export const fetchUserInfo = async () => {
+  const token = localStorage.getItem('accessToken');
+  try {
+    const response = await axios.get('/api/userinfo', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching user info:', error);
+    throw error;
+  }
+};
+
+이제 fetchUserInfo 함수는 Access Token을 Authorization 헤더에 포함하여 /api/userinfo 엔드포인트에 요청을 보내 사용자 정보를 가져옵니다.
+
+2.3 React 컴포넌트에서 사용자 정보 렌더링
+
+React 컴포넌트에서 fetchUserInfo 함수를 호출하여 사용자 정보를 받아와 표시할 수 있습니다.
+
+import React, { useEffect, useState } from 'react';
+import { fetchUserInfo } from './userService';
+
+const UserProfile = () => {
+  const [userInfo, setUserInfo] = useState(null);
+
+  useEffect(() => {
+    const getUserInfo = async () => {
+      try {
+        const data = await fetchUserInfo();
+        setUserInfo(data);
+      } catch (error) {
+        console.error('Failed to load user info', error);
+      }
+    };
+    getUserInfo();
+  }, []);
+
+  if (!userInfo) {
+    return <div>Loading...</div>;
+  }
+
+  return (
+    <div>
+      <h1>User Profile</h1>
+      <p>Name: {userInfo.name}</p>
+      <p>Email: {userInfo.email}</p>
+      <p>Role: {userInfo.role}</p>
+    </div>
+  );
+};
+
+export default UserProfile;
+
+이 컴포넌트는 useEffect 훅을 사용해 fetchUserInfo를 호출하여 사용자 정보를 가져와 상태로 관리하고, 렌더링 시 userInfo의 각 필드를 화면에 표시합니다.
+
+요약
+
+	•	백엔드: RestTemplate을 사용해 Access Token을 발급받아 헤더에 추가하여 요청하고, JWT를 파싱하여 사용자 정보를 추출.
+	•	프론트엔드: Access Token을 localStorage에 저장하여 인증에 사용하고, 백엔드의 /api/userinfo 엔드포인트를 통해 사용자 정보를 요청하고 표시.
+
+a. Access Token 만료 시 자동 재발급 기능 추가
+b. 프론트엔드에서 사용자 정보의 보안을 위한 추가 전략
+
+
+
+
+
 사용자가 컨트롤러를 호출할 때 날짜, 시간, 사용자 ID, 호출한 API 주소 등을 데이터베이스에 기록하려면, AOP(Aspect-Oriented Programming)를 사용하여 모든 API 호출에 대한 로깅을 중앙 집중화할 수 있습니다. 이를 통해 코드 중복을 줄이고, 필요한 모든 정보가 데이터베이스에 기록되도록 할 수 있습니다.
 
 ### 1. 데이터베이스 테이블 설계
