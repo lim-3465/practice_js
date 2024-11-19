@@ -1,3 +1,219 @@
+Spring Security에서 oauth2Login을 사용하지 않고, OAuth2 인증을 수동으로 구현하려면, 다음과 같이 Spring Security의 기본 구성을 우회하고 RestTemplate 또는 WebClient를 활용해 직접 Access Code → Access Token → UserInfo 과정을 처리할 수 있습니다.
+
+1. Spring Security 없이 OAuth2 수동 처리
+
+기본 흐름:
+
+	1.	클라이언트가 인증 서버(IdAnywhere)의 Authorization Endpoint로 리다이렉트.
+	2.	인증 서버에서 Access Code를 Redirect URI로 전달.
+	3.	Spring Boot 백엔드가 Access Code를 Token Endpoint로 전송해 Access Token 획득.
+	4.	Access Token으로 UserInfo Endpoint 호출해 사용자 정보 획득.
+
+2. Spring Boot 백엔드 구현
+
+2.1 application.yml 간소화
+
+Spring Security의 OAuth2 설정을 사용하지 않으므로 간소화된 application.yml 파일:
+
+idanywhere:
+  client:
+    client-id: your-client-id
+    client-secret: your-client-secret
+    redirect-uri: http://localhost:8080/oauth2/callback
+    authorization-uri: https://idanywhere.example.com/oauth/authorize
+    token-uri: https://idanywhere.example.com/oauth/token
+    user-info-uri: https://idanywhere.example.com/oauth/userinfo
+
+2.2 Security Configuration
+
+Spring Security는 Stateless로 설정하고 특정 경로만 보호합니다. OAuth2 처리에는 개입하지 않습니다.
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.SecurityFilterChain;
+
+@Configuration
+public class SecurityConfig {
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http
+            .csrf(csrf -> csrf.disable()) // CSRF 비활성화
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // Stateless
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/", "/oauth2/**").permitAll() // OAuth2 경로는 공개
+                .anyRequest().authenticated() // 나머지는 인증 필요
+            );
+
+        return http.build();
+    }
+}
+
+2.3 Access Code → Access Token 교환 및 사용자 정보 처리
+
+OAuth2Controller.java
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.Map;
+
+@RestController
+@RequestMapping("/oauth2")
+public class OAuth2Controller {
+
+    @Value("${idanywhere.client.client-id}")
+    private String clientId;
+
+    @Value("${idanywhere.client.client-secret}")
+    private String clientSecret;
+
+    @Value("${idanywhere.client.redirect-uri}")
+    private String redirectUri;
+
+    @Value("${idanywhere.client.token-uri}")
+    private String tokenUri;
+
+    @Value("${idanywhere.client.user-info-uri}")
+    private String userInfoUri;
+
+    private final RestTemplate restTemplate;
+
+    public OAuth2Controller(RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
+    }
+
+    // Access Code를 받는 콜백 엔드포인트
+    @GetMapping("/callback")
+    public ResponseEntity<Map<String, Object>> handleOAuthCallback(@RequestParam("code") String code) {
+        // 1. Access Code를 사용해 Access Token 요청
+        String tokenResponse = requestAccessToken(code);
+
+        // 2. Access Token으로 사용자 정보 요청
+        Map<String, Object> userInfo = requestUserInfo(tokenResponse);
+
+        return ResponseEntity.ok(userInfo);
+    }
+
+    private String requestAccessToken(String code) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+
+        String body = String.format(
+            "grant_type=authorization_code&code=%s&redirect_uri=%s&client_id=%s&client_secret=%s",
+            code, redirectUri, clientId, clientSecret
+        );
+
+        HttpEntity<String> entity = new HttpEntity<>(body, headers);
+
+        ResponseEntity<Map> response = restTemplate.exchange(
+                tokenUri,
+                HttpMethod.POST,
+                entity,
+                Map.class
+        );
+
+        if (response.getStatusCode() == HttpStatus.OK) {
+            return (String) response.getBody().get("access_token");
+        } else {
+            throw new RuntimeException("Failed to retrieve access token");
+        }
+    }
+
+    private Map<String, Object> requestUserInfo(String accessToken) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "Bearer " + accessToken);
+
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        ResponseEntity<Map> response = restTemplate.exchange(
+                userInfoUri,
+                HttpMethod.GET,
+                entity,
+                Map.class
+        );
+
+        if (response.getStatusCode() == HttpStatus.OK) {
+            return response.getBody();
+        } else {
+            throw new RuntimeException("Failed to retrieve user info");
+        }
+    }
+}
+
+2.4 RestTemplate Bean 등록
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.client.RestTemplate;
+
+@Configuration
+public class RestTemplateConfig {
+
+    @Bean
+    public RestTemplate restTemplate() {
+        return new RestTemplate();
+    }
+}
+
+3. React 프론트엔드 구현
+
+3.1 Authorization Endpoint로 리다이렉트
+
+React에서 사용자를 인증 서버(IdAnywhere)로 리다이렉트합니다.
+
+export const redirectToLogin = () => {
+  const clientId = "your-client-id";
+  const redirectUri = encodeURIComponent("http://localhost:8080/oauth2/callback");
+  const authorizationUrl = `https://idanywhere.example.com/oauth/authorize?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&scope=openid profile email`;
+
+  window.location.href = authorizationUrl;
+};
+
+3.2 Access Token 및 사용자 정보 요청
+
+React는 Access Token을 사용하여 백엔드에서 사용자 정보를 가져옵니다.
+
+import axios from 'axios';
+
+export const fetchUserInfo = async () => {
+  try {
+    const response = await axios.get('/oauth2/callback');
+    return response.data; // 사용자 정보
+  } catch (error) {
+    console.error('Error fetching user info:', error);
+    throw error;
+  }
+};
+
+4. 장점 및 단점
+
+장점
+
+	1.	Spring Security 설정 없이 유연하게 OAuth2 구현 가능.
+	2.	요청 흐름을 완전히 제어할 수 있음 (예: 토큰 저장 방식, 사용자 정보 확장 등).
+
+단점
+
+	1.	OAuth2 인증 로직을 직접 관리해야 하므로 보안 고려 필요.
+	2.	Spring Security의 자동화된 기능(토큰 검증, 세션 관리 등)을 사용하지 못함.
+
+5. 추천
+
+	•	수동 구현: 특정 요구사항이 있고 OAuth2 인증 흐름을 세밀히 제어해야 하는 경우에 적합.
+	•	Spring Security 자동화 사용: 표준 구현이 충분한 경우에는 Spring Security의 oauth2Login을 사용하는 것이 더 간단하고 보안적으로 유리.
+
+a. 사용자 권한(Role) 기반 API 보호 추가 요청.
+b. Access Token을 HttpOnly 쿠키로 저장하는 보안 강화 요청.
+
+
+
+
+
 IdAnywhere와 같은 기업 인증/인가 플랫폼을 사용하는 경우, OAuth2나 SAML과 같은 프로토콜을 기반으로 동작하는지 확인해야 합니다. 대부분의 IdAnywhere 플랫폼은 OAuth2 또는 OpenID Connect(OIDC)를 지원하며, Spring Boot에서 이를 구현하려면 약간의 맞춤 설정이 필요할 수 있습니다.
 
 아래는 IdAnywhere를 Spring Boot와 통합하여 Authorization Code Grant Flow를 구현하는 일반적인 방법입니다. 구체적인 플랫폼 세부 사항은 IdAnywhere의 공식 문서를 참고해야 합니다.
