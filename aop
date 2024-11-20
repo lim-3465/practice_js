@@ -1,3 +1,198 @@
+OAuth2 Provider가 인증 성공 후 Redirect URI로 리디렉션하면, Spring Boot 애플리케이션에서 해당 요청을 처리하여 Access Code를 받아야 합니다. 이후 Access Code를 사용해 Access Token을 요청하고 사용자 인증을 완료합니다.
+
+아래는 Spring Boot에서 Redirect URI를 처리하는 방법을 단계별로 설명합니다.
+
+1. Redirect URI 처리 방식
+
+	1.	OAuth2 Provider가 Redirect URI로 Access Code를 전송:
+	•	예: http://localhost:8080/oauth2/callback?code=ACCESS_CODE.
+	2.	Spring Boot가 Redirect URI 요청을 처리:
+	•	code 파라미터를 읽고 Token Endpoint에 요청하여 Access Token 획득.
+	•	Access Token을 사용해 사용자 정보를 가져오고 인증 완료.
+
+2. Spring Boot에서 Redirect URI 처리
+
+2.1 Security 설정에서 Redirect URI 제외
+
+Redirect URI(/oauth2/callback)는 공개 경로로 설정합니다.
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.SecurityFilterChain;
+
+@Configuration
+public class SecurityConfig {
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http
+            .csrf(csrf -> csrf.disable())
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/", "/oauth2/callback").permitAll() // Redirect URI는 공개
+                .anyRequest().authenticated()
+            );
+
+        return http.build();
+    }
+}
+
+2.2 Access Code 처리 컨트롤러
+
+OAuth2Controller.java
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.Map;
+
+@RestController
+@RequestMapping("/oauth2")
+public class OAuth2Controller {
+
+    @Value("${idanywhere.client.client-id}")
+    private String clientId;
+
+    @Value("${idanywhere.client.client-secret}")
+    private String clientSecret;
+
+    @Value("${idanywhere.client.redirect-uri}")
+    private String redirectUri;
+
+    @Value("${idanywhere.client.token-uri}")
+    private String tokenUri;
+
+    @Value("${idanywhere.client.user-info-uri}")
+    private String userInfoUri;
+
+    private final RestTemplate restTemplate;
+
+    public OAuth2Controller(RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
+    }
+
+    @GetMapping("/callback")
+    public ResponseEntity<Map<String, Object>> handleOAuthCallback(@RequestParam("code") String code) {
+        // Access Code로 Access Token 요청
+        String accessToken = requestAccessToken(code);
+
+        // Access Token으로 사용자 정보 요청
+        Map<String, Object> userInfo = requestUserInfo(accessToken);
+
+        // 사용자 정보를 반환하거나 세션에 저장
+        return ResponseEntity.ok(userInfo);
+    }
+
+    private String requestAccessToken(String code) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+
+        String body = String.format(
+            "grant_type=authorization_code&code=%s&redirect_uri=%s&client_id=%s&client_secret=%s",
+            code, redirectUri, clientId, clientSecret
+        );
+
+        HttpEntity<String> entity = new HttpEntity<>(body, headers);
+
+        ResponseEntity<Map> response = restTemplate.exchange(
+                tokenUri,
+                HttpMethod.POST,
+                entity,
+                Map.class
+        );
+
+        if (response.getStatusCode() == HttpStatus.OK) {
+            return (String) response.getBody().get("access_token");
+        } else {
+            throw new RuntimeException("Failed to retrieve access token");
+        }
+    }
+
+    private Map<String, Object> requestUserInfo(String accessToken) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "Bearer " + accessToken);
+
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        ResponseEntity<Map> response = restTemplate.exchange(
+                userInfoUri,
+                HttpMethod.GET,
+                entity,
+                Map.class
+        );
+
+        if (response.getStatusCode() == HttpStatus.OK) {
+            return response.getBody();
+        } else {
+            throw new RuntimeException("Failed to retrieve user info");
+        }
+    }
+}
+
+3. 주요 단계 요약
+
+	1.	Access Code 수신:
+	•	OAuth2 Provider가 Redirect URI로 Access Code를 전송.
+	•	@GetMapping("/callback")으로 Access Code를 읽음.
+	2.	Access Token 요청:
+	•	Access Code를 Token Endpoint에 전달.
+	•	RestTemplate을 사용해 Access Token 요청.
+	3.	사용자 정보 요청:
+	•	Access Token을 UserInfo Endpoint에 전달하여 사용자 정보 요청.
+	4.	사용자 인증 처리:
+	•	사용자 정보를 세션 또는 SecurityContext에 저장(선택 사항).
+
+4. React와 연동
+
+React 클라이언트가 Authorization Endpoint로 리다이렉트하고, 인증 후 Redirect URI로 돌아옵니다.
+
+React에서 리다이렉트 처리
+
+import axios from 'axios';
+
+export const handleOAuthCallback = async () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const code = urlParams.get('code');
+
+  if (code) {
+    try {
+      const response = await axios.get(`/oauth2/callback?code=${code}`);
+      console.log('User Info:', response.data);
+
+      // 사용자 정보 저장 또는 대시보드로 이동
+      localStorage.setItem('userInfo', JSON.stringify(response.data));
+      window.location.href = '/dashboard';
+    } catch (error) {
+      console.error('Error during OAuth callback:', error);
+    }
+  } else {
+    console.error('Authorization code not found');
+  }
+};
+
+5. 추가 고려 사항
+
+	•	Error Handling:
+	•	Access Code가 없거나, Access Token 요청 실패 시 예외를 처리해야 합니다.
+	•	Redirect URI 확인:
+	•	OAuth2 Provider에서 등록된 Redirect URI와 요청 URI가 정확히 일치해야 합니다.
+	•	Stateless 인증:
+	•	Access Token을 검증하고 상태를 유지하지 않는 방식으로 구현하려면 JWT를 사용하거나 클라이언트가 상태를 관리하도록 설정합니다.
+
+6. 다음 단계
+
+a. Spring Security와 연동하여 Access Token 검증 로직 추가 요청.
+b. Access Token과 사용자 정보를 세션 없이 관리하는 JWT 기반 인증 요청.
+
+
+
+
+
+
 Spring Security에서 oauth2Login을 사용하지 않고, OAuth2 인증을 수동으로 구현하려면, 다음과 같이 Spring Security의 기본 구성을 우회하고 RestTemplate 또는 WebClient를 활용해 직접 Access Code → Access Token → UserInfo 과정을 처리할 수 있습니다.
 
 1. Spring Security 없이 OAuth2 수동 처리
