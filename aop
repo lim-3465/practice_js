@@ -1,3 +1,151 @@
+React에서 URL 리다이렉트를 받으면 브라우저는 기본적으로 해당 URL로 이동합니다. 하지만 리다이렉트 이후에 URL의 파라미터를 처리하거나, 특정 페이지로 이동하려면 React의 라우팅 로직이 필요합니다.
+
+아래는 React에서 리다이렉트 URL을 처리하고, 페이지 이동을 구현하는 방법입니다.
+
+1. 기본 리다이렉트 동작
+
+OAuth2 인증 서버(IdAnywhere)가 redirect_uri로 리다이렉트하면 브라우저는 해당 URL로 이동합니다. 예:
+
+http://localhost:3000/oauth2/callback?code=AUTHORIZATION_CODE
+
+브라우저는 자동으로 http://localhost:3000/oauth2/callback 페이지로 이동하며, React 애플리케이션의 라우터가 이 URL을 처리해야 합니다.
+
+2. React Router로 리다이렉트 처리
+
+React Router를 사용해 특정 경로(/oauth2/callback)를 처리합니다.
+
+2.1 React Router 설정
+
+설치:
+
+npm install react-router-dom
+
+App.js 파일에서 React Router를 설정합니다.
+
+import React from 'react';
+import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import { OAuthCallback } from './OAuthCallback';
+import { Dashboard } from './Dashboard';
+import { Login } from './Login';
+
+function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<Login />} />
+        <Route path="/oauth2/callback" element={<OAuthCallback />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+      </Routes>
+    </Router>
+  );
+}
+
+export default App;
+
+2.2 OAuthCallback 컴포넌트
+
+OAuth2 인증 후 리다이렉트된 URL에서 Authorization Code를 처리하고, 인증 완료 후 대시보드 페이지로 이동합니다.
+
+import React, { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+
+export const OAuthCallback = () => {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleOAuthCallback = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get('code'); // Authorization Code 추출
+
+      if (code) {
+        try {
+          // Access Token 요청
+          const response = await axios.get(`/oauth2/callback?code=${code}`);
+          const { accessToken } = response.data;
+
+          // Access Token 저장
+          localStorage.setItem('accessToken', accessToken);
+
+          // 대시보드로 이동
+          navigate('/dashboard');
+        } catch (error) {
+          console.error('Error during OAuth callback:', error);
+          // 에러 발생 시 로그인 페이지로 이동
+          navigate('/');
+        }
+      } else {
+        console.error('Authorization code not found');
+        navigate('/');
+      }
+    };
+
+    handleOAuthCallback();
+  }, [navigate]);
+
+  return <div>Processing OAuth callback...</div>;
+};
+
+2.3 대시보드 페이지
+
+Access Token이 존재하면 사용자 정보를 요청하고 대시보드 페이지를 렌더링합니다.
+
+import React, { useEffect, useState } from 'react';
+import apiClient from './apiClient';
+
+export const Dashboard = () => {
+  const [userInfo, setUserInfo] = useState(null);
+
+  useEffect(() => {
+    const fetchUserInfo = async () => {
+      try {
+        const response = await apiClient.get('/api/userinfo');
+        setUserInfo(response.data);
+      } catch (error) {
+        console.error('Error fetching user info:', error);
+      }
+    };
+
+    fetchUserInfo();
+  }, []);
+
+  if (!userInfo) {
+    return <div>Loading...</div>;
+  }
+
+  return (
+    <div>
+      <h1>Welcome, {userInfo.name}!</h1>
+      <p>Email: {userInfo.email}</p>
+    </div>
+  );
+};
+
+3. 결과
+
+	1.	브라우저가 redirect_uri로 리다이렉트되면 React Router가 해당 경로(/oauth2/callback)를 처리.
+	2.	OAuthCallback 컴포넌트에서 URL의 code 파라미터를 읽고, 백엔드로 Access Token 요청.
+	3.	Access Token을 저장한 후 대시보드(/dashboard)로 이동.
+
+4. 테스트
+
+	1.	로그인 버튼 클릭:
+	•	Login 컴포넌트에서 OAuth2 인증 서버로 리다이렉트.
+	2.	Redirect URI:
+	•	인증 성공 후 브라우저가 http://localhost:3000/oauth2/callback로 리다이렉트.
+	3.	Authorization Code 처리:
+	•	`OAuth
+
+
+
+
+
+
+
+
+
+
+
 OAuth2 Provider가 인증 성공 후 Redirect URI로 리디렉션하면, Spring Boot 애플리케이션에서 해당 요청을 처리하여 Access Code를 받아야 합니다. 이후 Access Code를 사용해 Access Token을 요청하고 사용자 인증을 완료합니다.
 
 아래는 Spring Boot에서 Redirect URI를 처리하는 방법을 단계별로 설명합니다.
