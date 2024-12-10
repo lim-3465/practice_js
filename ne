@@ -1,3 +1,177 @@
+맞습니다! 서드파티 인증 서버에서 Access Token을 발급받아 사용하는 경우, 클라이언트 애플리케이션에서 JWT를 직접 생성할 필요는 없습니다. 대신, 서드파티에서 발급된 Access Token을 사용하여 인증 및 권한을 처리하면 됩니다.
+
+1. Access Token의 역할
+	•	Access Token은 이미 서드파티 인증 서버에 의해 생성되었으며, 해당 서버에서 서명과 클레임(payload)을 포함합니다.
+	•	이 토큰을 검증하거나 디코딩하여 필요한 정보(예: roles, sub, exp)를 사용할 수 있습니다.
+
+2. 서드파티 Access Token 사용 방식
+
+2.1 Access Token 발급받기
+
+React 또는 백엔드(Spring Boot)가 서드파티 인증 서버로부터 Access Token을 발급받습니다.
+
+예: Access Token 요청
+
+POST https://third-party-auth.com/oauth/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=authorization_code&
+code=AUTHORIZATION_CODE&
+redirect_uri=YOUR_REDIRECT_URI&
+client_id=YOUR_CLIENT_ID&
+client_secret=YOUR_CLIENT_SECRET
+
+응답:
+
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIs...",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "scope": "openid profile email"
+}
+
+2.2 Access Token 검증 및 디코딩
+
+서드파티에서 발급한 Access Token은 이미 JWT 형식으로 서명되어 있습니다. Spring Boot에서 서드파티의 공개 키(public key)를 사용하여 검증하고, 클레임 데이터를 디코딩해 사용할 수 있습니다.
+
+2.2.1 토큰 검증
+	•	서드파티의 공개 키를 사용하여 JWT 서명을 검증합니다.
+	•	서드파티 인증 서버의 /.well-known/openid-configuration 엔드포인트에서 공개 키(JWKS)를 가져올 수 있습니다.
+
+import io.jsonwebtoken.*;
+import org.springframework.stereotype.Component;
+
+import java.security.Key;
+import java.util.Base64;
+import java.util.List;
+
+@Component
+public class JwtValidator {
+
+    private final String publicKey = "MIIBIjANBgkqh..."; // 서드파티 공개 키
+
+    public Claims validateToken(String token) {
+        try {
+            Key key = Keys.hmacShaKeyFor(Base64.getDecoder().decode(publicKey));
+            return Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token).getBody();
+        } catch (JwtException e) {
+            throw new RuntimeException("Invalid or expired token");
+        }
+    }
+}
+
+2.2.2 역할(Role) 추출
+
+Access Token의 클레임에서 역할 정보를 추출합니다.
+
+public List<String> getRolesFromToken(String token) {
+    Claims claims = validateToken(token);
+    return claims.get("roles", List.class); // "roles" 클레임에서 역할 목록 추출
+}
+
+2.3 Spring Security와 통합
+
+Spring Security에서 서드파티 Access Token을 사용해 사용자 인증을 처리합니다.
+
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import javax.servlet.FilterChain;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.util.stream.Collectors;
+
+@Component
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    private final JwtValidator jwtValidator;
+
+    public JwtAuthenticationFilter(JwtValidator jwtValidator) {
+        this.jwtValidator = jwtValidator;
+    }
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+            throws ServletException, IOException {
+        String authorizationHeader = request.getHeader("Authorization");
+
+        if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
+            String token = authorizationHeader.substring(7);
+
+            try {
+                Claims claims = jwtValidator.validateToken(token);
+                String username = claims.getSubject();
+                var roles = claims.get("roles", List.class);
+
+                // Spring Security 권한 설정
+                var authorities = roles.stream()
+                        .map(SimpleGrantedAuthority::new)
+                        .collect(Collectors.toList());
+
+                var authentication = new UsernamePasswordAuthenticationToken(username, null, authorities);
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+            } catch (Exception e) {
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                return;
+            }
+        }
+
+        chain.doFilter(request, response);
+    }
+}
+
+3. 역할(Role) 기반 접근 제어
+
+3.1 보안 설정
+
+Access Token의 역할(Role) 정보를 사용하여 특정 API 경로에 대한 접근을 제한합니다.
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.SecurityFilterChain;
+
+@Configuration
+public class SecurityConfig {
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http
+            .csrf(csrf -> csrf.disable())
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/admin/**").hasRole("ADMIN") // ADMIN 권한만 접근 가능
+                .requestMatchers("/user/**").hasRole("USER")   // USER 권한만 접근 가능
+                .anyRequest().authenticated()
+            );
+
+        return http.build();
+    }
+}
+
+4. 요약
+	1.	JWT 생성 불필요:
+	•	서드파티 인증 서버에서 이미 Access Token(JWT)을 발급합니다.
+	2.	토큰 검증:
+	•	서드파티의 공개 키를 사용해 JWT 서명을 검증하고 클레임을 디코딩합니다.
+	3.	역할(Role) 추출 및 사용:
+	•	JWT 클레임에서 역할(Role)을 추출하고 Spring Security 권한 설정에 사용합니다.
+	4.	역할 기반 접근 제어:
+	•	Spring Security 설정에서 역할(Role)에 따라 API 접근을 제한합니다.
+
+추가 작업 가능
+
+a. 서드파티 JWKS(JSON Web Key Set) 자동 갱신 기능 추가.
+b. Access Token 만료 시 Refresh Token으로 갱신하는 로직 구현.
+
+
+
 React 클라이언트가 서버에서 Access Token을 handle_redirect URL로 POST 요청을 통해 받았을 때, 이를 처리하고 적절히 저장하려면 다음 단계를 따릅니다.
 
 1. Access Token 처리 흐름
