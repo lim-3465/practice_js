@@ -1,3 +1,205 @@
+React 클라이언트가 서버에서 Access Token을 handle_redirect URL로 POST 요청을 통해 받았을 때, 이를 처리하고 적절히 저장하려면 다음 단계를 따릅니다.
+
+1. Access Token 처리 흐름
+	1.	Authorization Server가 handle_redirect URL로 POST 요청을 전송하며 Authorization Code 또는 Access Token을 포함.
+	2.	React 클라이언트는 handle_redirect 페이지를 렌더링하여 Access Token을 추출.
+	3.	Access Token을 안전한 저장소(Local Storage, Session Storage, HttpOnly Cookie 등)에 저장.
+	4.	이후 API 요청에서 Access Token을 인증 헤더에 포함.
+
+2. Access Token 처리 코드
+
+2.1 React의 handle_redirect 컴포넌트
+
+React 컴포넌트에서 URL에 포함된 Access Token 또는 Authorization Code를 추출하고 저장합니다.
+
+import React, { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+
+export const HandleRedirect = () => {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleRedirect = async () => {
+      // Authorization Code 또는 Access Token 추출
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('code'); // Authorization Code
+      const accessToken = params.get('access_token'); // Access Token (if directly provided)
+
+      if (accessToken) {
+        // Access Token 저장 (간단한 경우)
+        localStorage.setItem('accessToken', accessToken);
+        navigate('/dashboard'); // 대시보드로 이동
+      } else if (code) {
+        try {
+          // Authorization Code를 서버로 전달하여 Access Token 요청
+          const response = await axios.post('/handle_redirect', { code });
+          const { accessToken } = response.data;
+
+          // Access Token 저장
+          localStorage.setItem('accessToken', accessToken);
+          navigate('/dashboard'); // 대시보드로 이동
+        } catch (error) {
+          console.error('Error exchanging code for access token:', error);
+          navigate('/login'); // 로그인 페이지로 이동
+        }
+      } else {
+        console.error('Authorization code or access token not found');
+        navigate('/login');
+      }
+    };
+
+    handleRedirect();
+  }, [navigate]);
+
+  return <div>Processing authentication...</div>;
+};
+
+2.2 Access Token 저장 위치
+
+React에서는 Access Token을 다음 위치 중 하나에 저장합니다:
+	1.	Local Storage:
+	•	구현이 간단하지만 XSS 공격에 취약.
+
+localStorage.setItem('accessToken', accessToken);
+
+
+	2.	Session Storage:
+	•	브라우저 세션이 끝날 때 토큰 삭제.
+
+sessionStorage.setItem('accessToken', accessToken);
+
+
+	3.	HttpOnly 쿠키:
+	•	보안성이 높고 XSS 공격에 안전.
+	•	서버에서 Set-Cookie 헤더를 사용하여 설정해야 함.
+
+// Spring Boot 예제
+private void setAccessTokenCookie(String accessToken, HttpServletResponse response) {
+    Cookie cookie = new Cookie("accessToken", accessToken);
+    cookie.setHttpOnly(true);
+    cookie.setSecure(true);
+    cookie.setPath("/");
+    cookie.setMaxAge(3600); // 1시간
+    response.addCookie(cookie);
+}
+
+3. 백엔드: Authorization Code 처리
+
+handle_redirect에서 Authorization Code를 Access Token으로 교환하는 엔드포인트를 구현합니다.
+
+Spring Boot 컨트롤러
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
+
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletResponse;
+
+import java.util.Map;
+
+@RestController
+public class OAuthController {
+
+    @Value("${thirdparty.client-id}")
+    private String clientId;
+
+    @Value("${thirdparty.client-secret}")
+    private String clientSecret;
+
+    @Value("${thirdparty.redirect-uri}")
+    private String redirectUri;
+
+    @Value("${thirdparty.token-uri}")
+    private String tokenUri;
+
+    private final RestTemplate restTemplate;
+
+    public OAuthController(RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
+    }
+
+    @PostMapping("/handle_redirect")
+    public ResponseEntity<Map<String, Object>> handleRedirect(@RequestParam("code") String code, HttpServletResponse response) {
+        try {
+            // Authorization Code를 Access Token으로 교환
+            String accessToken = requestAccessToken(code);
+
+            // Access Token을 HttpOnly 쿠키에 저장 (선택 사항)
+            setAccessTokenCookie(accessToken, response);
+
+            return ResponseEntity.ok(Map.of("accessToken", accessToken));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    private String requestAccessToken(String code) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+
+        String body = String.format(
+            "grant_type=authorization_code&code=%s&redirect_uri=%s&client_id=%s&client_secret=%s",
+            code, redirectUri, clientId, clientSecret
+        );
+
+        HttpEntity<String> request = new HttpEntity<>(body, headers);
+
+        ResponseEntity<Map> response = restTemplate.exchange(
+                tokenUri,
+                HttpMethod.POST,
+                request,
+                Map.class
+        );
+
+        if (response.getStatusCode() == HttpStatus.OK) {
+            return (String) response.getBody().get("access_token");
+        } else {
+            throw new RuntimeException("Failed to retrieve access token");
+        }
+    }
+
+    private void setAccessTokenCookie(String accessToken, HttpServletResponse response) {
+        Cookie cookie = new Cookie("accessToken", accessToken);
+        cookie.setHttpOnly(true);
+        cookie.setSecure(true); // HTTPS만 허용
+        cookie.setPath("/");
+        cookie.setMaxAge(3600); // 1시간
+        response.addCookie(cookie);
+    }
+}
+
+4. 최종 결과
+	1.	클라이언트에서 처리:
+	•	React 클라이언트는 Access Token을 저장(Local Storage, Session Storage 또는 HttpOnly Cookie)하고 사용자 인증 상태를 관리.
+	2.	백엔드에서 처리:
+	•	Authorization Code를 Access Token으로 교환.
+	•	필요하면 HttpOnly 쿠키로 Access Token을 클라이언트에 전달.
+
+5. 권장 사항
+	1.	보안 강화를 위해 HttpOnly 쿠키 사용:
+	•	Access Token을 HttpOnly 쿠키에 저장하면 XSS 공격을 방지할 수 있습니다.
+	2.	Refresh Token 사용:
+	•	Access Token이 만료되면 Refresh Token으로 새 Access Token을 발급받는 기능을 추가하세요.
+	3.	로그인 상태 확인:
+	•	React에서 사용자 상태를 전역적으로 관리(Context API, Redux 등)하여 로그인 상태를 확인하세요.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 아래는 엔드포인트에서 /oauth2/handle_redirect를 단순히 /handle_redirect로 변경한 코드입니다. 관련된 모든 경로 및 호출 부분을 수정했습니다.
 
 Spring Boot 컨트롤러
