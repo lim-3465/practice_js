@@ -1,3 +1,228 @@
+🔑 React: OAuth2 + Test Account 통합 로그인 예제
+
+📚 1. 목표
+	1.	OAuth2 로그인
+	•	Authorization Code → Access Token
+	2.	Test Account 로그인
+	•	Username + Password → Access Token
+	3.	Access Token 저장 및 API 요청 시 사용
+	4.	Role 기반 접근 제어
+
+⚛️ 2. AuthService.js
+
+API 호출 및 Token 관리
+
+import axios from 'axios';
+
+// ✅ Test Account 로그인
+export const testLogin = async (username, password) => {
+    try {
+        const response = await axios.post('/api/auth/test-login', null, {
+            params: { username, password },
+        });
+        const { accessToken, username: user, role } = response.data;
+        localStorage.setItem('accessToken', accessToken);
+        localStorage.setItem('username', user);
+        localStorage.setItem('role', role);
+        console.log('Test Account Login Successful');
+    } catch (error) {
+        console.error('Test Account Login Failed:', error.response?.data || error.message);
+    }
+};
+
+// ✅ OAuth2 Access Token 요청
+export const fetchAccessToken = async (code) => {
+    try {
+        const response = await axios.get(`/api/auth/handle_redirect?code=${code}`);
+        const { accessToken, username: user, role } = response.data;
+        localStorage.setItem('accessToken', accessToken);
+        localStorage.setItem('username', user);
+        localStorage.setItem('role', role);
+        console.log('OAuth2 Login Successful');
+    } catch (error) {
+        console.error('OAuth2 Login Failed:', error.response?.data || error.message);
+    }
+};
+
+// ✅ API 요청 (Access Token 포함)
+export const fetchProtectedResource = async () => {
+    try {
+        const accessToken = localStorage.getItem('accessToken');
+        const response = await axios.get('/api/user/me', {
+            headers: {
+                Authorization: `Bearer ${accessToken}`,
+            },
+        });
+        console.log('Protected Resource:', response.data);
+    } catch (error) {
+        console.error('Failed to fetch protected resource:', error.response?.data || error.message);
+    }
+};
+
+// ✅ 로그아웃
+export const logout = () => {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('username');
+    localStorage.removeItem('role');
+    console.log('Logged out successfully');
+};
+
+⚛️ 3. Login.js
+
+OAuth2 및 Test Account 로그인 UI
+
+import React, { useEffect, useState } from 'react';
+import { testLogin, fetchAccessToken, fetchProtectedResource, logout } from './AuthService';
+
+function Login() {
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+    // ✅ OAuth2 로그인 핸들러
+    const handleOAuthLogin = () => {
+        window.location.href = 'https://idanywhere.com/oauth/authorize?' +
+            'client_id=your-client-id&' +
+            'response_type=code&' +
+            'redirect_uri=https://localhost:8080/handle_redirect';
+    };
+
+    // ✅ Test Account 로그인 핸들러
+    const handleTestLogin = async () => {
+        if (!username || !password) {
+            alert('Please enter username and password');
+            return;
+        }
+        await testLogin(username, password);
+        setIsAuthenticated(true);
+    };
+
+    // ✅ OAuth2 Callback 처리
+    useEffect(() => {
+        const query = new URLSearchParams(window.location.search);
+        const code = query.get('code');
+        if (code) {
+            fetchAccessToken(code).then(() => {
+                setIsAuthenticated(true);
+                window.history.replaceState({}, document.title, window.location.pathname);
+            });
+        }
+    }, []);
+
+    return (
+        <div style={{ padding: '20px' }}>
+            <h2>🔐 Login</h2>
+
+            {/* ✅ OAuth2 로그인 버튼 */}
+            <button onClick={handleOAuthLogin} style={{ marginBottom: '10px' }}>
+                Login with OAuth2
+            </button>
+
+            <hr />
+
+            {/* ✅ Test Account 로그인 */}
+            <h3>Test Account Login</h3>
+            <input
+                type="text"
+                placeholder="Username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+            />
+            <br />
+            <input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+            />
+            <br />
+            <button onClick={handleTestLogin}>Login with Test Account</button>
+
+            <hr />
+
+            {/* ✅ 인증된 사용자 정보 확인 */}
+            {isAuthenticated && (
+                <div>
+                    <h3>✅ Authenticated</h3>
+                    <button onClick={fetchProtectedResource}>Fetch Protected Resource</button>
+                    <br />
+                    <button onClick={logout}>Logout</button>
+                </div>
+            )}
+        </div>
+    );
+}
+
+export default Login;
+
+⚛️ 4. ProtectedResource.js
+
+인증된 사용자 데이터 확인
+
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+
+function ProtectedResource() {
+    const [data, setData] = useState('');
+
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const accessToken = localStorage.getItem('accessToken');
+                const response = await axios.get('/api/user/me', {
+                    headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                    },
+                });
+                setData(response.data);
+            } catch (error) {
+                console.error('Failed to fetch resource:', error.response?.data || error.message);
+            }
+        };
+
+        fetchData();
+    }, []);
+
+    return (
+        <div>
+            <h2>Protected Resource</h2>
+            <p>{data}</p>
+        </div>
+    );
+}
+
+export default ProtectedResource;
+
+🛡️ 5. API 요청 흐름
+	1.	OAuth2 로그인:
+	•	사용자는 OAuth2 Provider를 통해 Authorization Code를 얻습니다.
+	•	백엔드가 Access Token을 가져오고, 사용자 정보를 반환합니다.
+	2.	Test Account 로그인:
+	•	사용자는 username과 password를 입력합니다.
+	•	백엔드가 사용자를 검증하고 Access Token을 반환합니다.
+	3.	Access Token 저장:
+	•	Access Token은 localStorage에 저장됩니다.
+	•	API 요청 시 Authorization: Bearer <Token> 헤더에 포함됩니다.
+	4.	Protected API 요청:
+	•	인증된 사용자는 API를 호출할 수 있습니다.
+
+🎯 6. 최종 요약
+	1.	OAuth2 로그인: Authorization Code → Access Token
+	2.	Test Account 로그인: Username/Password → Access Token
+	3.	React에서 Access Token 관리: localStorage 사용
+	4.	Protected API 요청: Access Token 포함하여 요청
+	5.	로그아웃 기능 지원: localStorage에서 Token 제거
+
+🚀 7. 권장 사용
+	1.	OAuth2: 실사용자 인증에 사용
+	2.	Test Account: 개발 및 테스트 환경에서만 사용
+
+이제 OAuth2 로그인과 Test Account 로그인이 통합된 React 앱이 완성되었습니다! 🎉🔐
+
+
+
+
+
 public class LibraryWrapper {
 
     // 스레드별로 독립적인 상태를 유지하기 위해 ThreadLocal 사용
