@@ -1,3 +1,257 @@
+🚀 React + Spring Boot OAuth2 + Test Account 통합 예제
+
+📚 1. 프로젝트 구조
+
+✅ Backend (Spring Boot)
+
+/src/main/java/com/example/security
+├── config/
+│   ├── SecurityConfig.java      // Spring Security 설정
+│   ├── CorsConfig.java          // CORS 설정
+│   ├── JwtTokenUtil.java        // JWT 토큰 유틸리티
+│   ├── TokenValidator.java      // JWT 토큰 검증
+├── controller/
+│   ├── AuthController.java      // OAuth2 & Test Account 컨트롤러
+├── oauth2/
+│   ├── OAuth2TokenService.java  // Authorization Code → Access Token
+├── service/
+│   ├── TestAccountService.java  // Test Account 인증 서비스
+├── filter/
+│   ├── JwtAuthenticationFilter.java  // JWT 필터
+└── application.yml              // 환경설정
+
+✅ Frontend (React)
+
+/src
+├── index.js
+├── App.js
+├── routes.js        // 라우터 설정
+├── services/
+│   ├── AuthService.js // 인증 서비스
+├── pages/
+│   ├── Login.js       // 로그인 페이지
+│   ├── OAuthCallback.js // OAuth 리다이렉트 처리
+│   ├── ProtectedResource.js // 보호된 페이지
+
+🔑 2. Backend (Spring Boot)
+
+✅ 2.1 SecurityConfig.java
+
+package com.example.security.config;
+
+import com.example.security.filter.JwtAuthenticationFilter;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+@Configuration
+public class SecurityConfig {
+
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+    }
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http
+            .cors().and()
+            .csrf().disable()
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/api/oauth/**").permitAll()
+                .requestMatchers("/handle_redirect").permitAll()
+                .requestMatchers("/api/auth/test-login").permitAll()
+                .anyRequest().authenticated()
+            )
+            .sessionManagement(session -> session
+                .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+            )
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+}
+
+✅ 2.2 AuthController.java
+
+package com.example.security.controller;
+
+import com.example.security.oauth2.OAuth2TokenService;
+import com.example.security.jwt.TokenValidator;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.*;
+
+import javax.servlet.http.HttpServletRequest;
+import java.util.Collections;
+import java.util.Map;
+
+@RestController
+@RequestMapping("/api/auth")
+public class AuthController {
+
+    @Autowired
+    private OAuth2TokenService oAuth2TokenService;
+
+    @Autowired
+    private TokenValidator tokenValidator;
+
+    @PostMapping("/handle_redirect")
+    public ResponseEntity<Map<String, String>> handleOAuthCallback(@RequestParam String code, HttpServletRequest request) {
+        Map<String, String> tokens = oAuth2TokenService.exchangeAuthorizationCode(code);
+        String accessToken = tokens.get("access_token");
+        String username = tokenValidator.getUsernameFromToken(accessToken);
+        String role = tokenValidator.getRoleFromToken(accessToken);
+
+        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                username, null, Collections.singleton(() -> "ROLE_" + role)
+        );
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+
+        return ResponseEntity.ok(Map.of(
+                "accessToken", accessToken,
+                "username", username,
+                "role", role
+        ));
+    }
+
+    @PostMapping("/test-login")
+    public ResponseEntity<Map<String, String>> testLogin(@RequestParam String username, @RequestParam String password) {
+        if ("testUser".equals(username) && "password123".equals(password)) {
+            String accessToken = "testAccessToken";
+            return ResponseEntity.ok(Map.of(
+                    "accessToken", accessToken,
+                    "username", username,
+                    "role", "USER"
+            ));
+        }
+        return ResponseEntity.badRequest().body(Map.of("error", "Invalid credentials"));
+    }
+}
+
+✅ 2.3 OAuth2TokenService.java
+
+package com.example.security.oauth2;
+
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.Map;
+
+@Service
+public class OAuth2TokenService {
+
+    public Map<String, String> exchangeAuthorizationCode(String code) {
+        RestTemplate restTemplate = new RestTemplate();
+
+        Map<String, String> request = Map.of(
+                "grant_type", "authorization_code",
+                "code", code,
+                "redirect_uri", "https://localhost:8080/handle_redirect",
+                "client_id", "your-client-id",
+                "client_secret", "your-client-secret"
+        );
+
+        Map response = restTemplate.postForObject("https://idanywhere.com/oauth/token", request, Map.class);
+        return Map.of(
+                "access_token", response.get("access_token").toString()
+        );
+    }
+}
+
+⚛️ 3. Frontend (React)
+
+✅ 3.1 routes.js
+
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import Login from './pages/Login';
+import OAuthCallback from './pages/OAuthCallback';
+import ProtectedResource from './pages/ProtectedResource';
+
+const router = createBrowserRouter([
+    { path: '/', element: <Login /> },
+    { path: '/handle_redirect', element: <OAuthCallback /> },
+    { path: '/protected', element: <ProtectedResource /> },
+]);
+
+export default router;
+
+✅ 3.2 Login.js
+
+import React, { useState } from 'react';
+import { testLogin } from '../services/AuthService';
+
+function Login() {
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
+
+    const handleOAuthLogin = () => {
+        window.location.href = 'https://idanywhere.com/oauth/authorize?' +
+            'client_id=your-client-id&response_type=code&' +
+            'redirect_uri=https://localhost:8080/handle_redirect';
+    };
+
+    const handleTestLogin = async () => {
+        await testLogin(username, password);
+        window.location.href = '/protected';
+    };
+
+    return (
+        <div>
+            <button onClick={handleOAuthLogin}>OAuth Login</button>
+            <input value={username} onChange={(e) => setUsername(e.target.value)} />
+            <input value={password} onChange={(e) => setPassword(e.target.value)} />
+            <button onClick={handleTestLogin}>Test Login</button>
+        </div>
+    );
+}
+
+✅ 3.3 AuthService.js
+
+import axios from 'axios';
+
+export const fetchAccessToken = async (code) => {
+    const response = await axios.post(`/api/auth/handle_redirect?code=${code}`);
+    localStorage.setItem('accessToken', response.data.accessToken);
+};
+
+export const testLogin = async (username, password) => {
+    const response = await axios.post('/api/auth/test-login', { username, password });
+    localStorage.setItem('accessToken', response.data.accessToken);
+};
+
+✅ 3.4 ProtectedResource.js
+
+import React, { useEffect } from 'react';
+
+function ProtectedResource() {
+    useEffect(() => {
+        console.log('Access Protected Resource');
+    }, []);
+
+    return <div>Protected Resource</div>;
+}
+
+🎯 4. 요약
+	1.	✅ OAuth2 로그인 (/handle_redirect)
+	2.	✅ Test Account 로그인 (/test-login)
+	3.	✅ JWT 토큰 인증
+	4.	✅ React Router로 페이지 관리
+
+이제 완전한 OAuth2 + Test Account + React + Spring Boot 통합 프로젝트가 완성되었습니다! 🚀🔐
+
+
+
+
+
+
+
 🔄 React에서 createBrowserRouter를 사용하여 OAuth2 Redirect 처리하기
 
 📚 1. createBrowserRouter란?
