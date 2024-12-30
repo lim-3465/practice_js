@@ -1,3 +1,266 @@
+🔄 React에서 createBrowserRouter를 사용하여 OAuth2 Redirect 처리하기
+
+📚 1. createBrowserRouter란?
+	•	createBrowserRouter는 React Router v6.4 이상에서 사용되는 API입니다.
+	•	BrowserRouter보다 더 명확하게 라우터를 정의할 수 있습니다.
+	•	OAuth2 Redirect 처리를 포함한 복잡한 라우팅 설정에 적합합니다.
+
+⚛️ 2. 프로젝트 구조
+
+/src
+├── index.js
+├── App.js
+├── routes.js   // 라우팅 정의
+├── pages/
+│   ├── Login.js
+│   ├── OAuthCallback.js
+│   ├── ProtectedResource.js
+└── services/
+    ├── AuthService.js
+
+✅ 3. 라우터 설정
+
+📌 3.1 routes.js
+
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import Login from './pages/Login';
+import OAuthCallback from './pages/OAuthCallback';
+import ProtectedResource from './pages/ProtectedResource';
+
+const router = createBrowserRouter([
+    {
+        path: '/',
+        element: <Login />,
+    },
+    {
+        path: '/handle_redirect',
+        element: <OAuthCallback />,
+    },
+    {
+        path: '/protected',
+        element: <ProtectedResource />,
+    },
+    {
+        path: '*',
+        element: <div>404 - Page Not Found</div>,
+    },
+]);
+
+export default router;
+
+📌 3.2 index.js
+
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { RouterProvider } from 'react-router-dom';
+import router from './routes';
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+    <React.StrictMode>
+        <RouterProvider router={router} />
+    </React.StrictMode>
+);
+
+✅ 4. OAuthCallback.js
+
+OAuth2 Redirect 처리 컴포넌트
+
+import React, { useEffect } from 'react';
+import { fetchAccessToken } from '../services/AuthService';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+
+function OAuthCallback() {
+    const [searchParams] = useSearchParams();
+    const navigate = useNavigate();
+
+    useEffect(() => {
+        const code = searchParams.get('code');
+        if (code) {
+            fetchAccessToken(code)
+                .then(() => {
+                    console.log('Access Token successfully fetched');
+                    navigate('/protected'); // 성공 시 Protected 페이지로 이동
+                })
+                .catch((error) => {
+                    console.error('Failed to fetch access token:', error);
+                    navigate('/login'); // 실패 시 로그인 페이지로 이동
+                });
+        } else {
+            console.error('Authorization code is missing');
+            navigate('/login');
+        }
+    }, [navigate, searchParams]);
+
+    return (
+        <div>
+            <h2>Authenticating...</h2>
+            <p>Please wait while we process your authentication.</p>
+        </div>
+    );
+}
+
+export default OAuthCallback;
+
+✅ 설명:
+	1.	useSearchParams:
+	•	URL에서 code 파라미터를 추출합니다.
+	2.	fetchAccessToken:
+	•	code를 사용하여 Access Token을 요청합니다.
+	3.	useNavigate:
+	•	요청 성공 시 /protected로 이동합니다.
+	•	실패 시 /login으로 이동합니다.
+
+✅ 5. Login.js
+
+OAuth2 및 Test Account 로그인
+
+import React, { useState } from 'react';
+import { testLogin } from '../services/AuthService';
+
+function Login() {
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
+
+    const handleOAuthLogin = () => {
+        window.location.href = 'https://idanywhere.com/oauth/authorize?' +
+            'client_id=your-client-id&' +
+            'response_type=code&' +
+            'redirect_uri=https://localhost:8080/handle_redirect';
+    };
+
+    const handleTestLogin = async () => {
+        if (!username || !password) {
+            alert('Please enter username and password');
+            return;
+        }
+        await testLogin(username, password);
+        window.location.href = '/protected';
+    };
+
+    return (
+        <div style={{ padding: '20px' }}>
+            <h2>🔐 Login</h2>
+
+            {/* ✅ OAuth2 로그인 버튼 */}
+            <button onClick={handleOAuthLogin} style={{ marginBottom: '10px' }}>
+                Login with OAuth2
+            </button>
+
+            <hr />
+
+            {/* ✅ Test Account 로그인 */}
+            <h3>Test Account Login</h3>
+            <input
+                type="text"
+                placeholder="Username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+            />
+            <br />
+            <input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+            />
+            <br />
+            <button onClick={handleTestLogin}>Login with Test Account</button>
+        </div>
+    );
+}
+
+export default Login;
+
+✅ 6. AuthService.js
+
+API 호출 및 토큰 관리
+
+import axios from 'axios';
+
+export const testLogin = async (username, password) => {
+    try {
+        const response = await axios.post('/api/auth/test-login', null, {
+            params: { username, password },
+        });
+        const { accessToken, username: user, role } = response.data;
+        localStorage.setItem('accessToken', accessToken);
+        localStorage.setItem('username', user);
+        localStorage.setItem('role', role);
+        console.log('Test Account Login Successful');
+    } catch (error) {
+        console.error('Test Account Login Failed:', error.response?.data || error.message);
+    }
+};
+
+export const fetchAccessToken = async (code) => {
+    try {
+        const response = await axios.get(`/api/auth/handle_redirect?code=${code}`);
+        const { accessToken, username: user, role } = response.data;
+        localStorage.setItem('accessToken', accessToken);
+        localStorage.setItem('username', user);
+        localStorage.setItem('role', role);
+        console.log('OAuth2 Login Successful');
+    } catch (error) {
+        console.error('OAuth2 Login Failed:', error.response?.data || error.message);
+    }
+};
+
+export const logout = () => {
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('username');
+    localStorage.removeItem('role');
+    console.log('Logged out successfully');
+};
+
+✅ 7. ProtectedResource.js
+
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+
+function ProtectedResource() {
+    const [data, setData] = useState('');
+
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const accessToken = localStorage.getItem('accessToken');
+                const response = await axios.get('/api/user/me', {
+                    headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                    },
+                });
+                setData(response.data);
+            } catch (error) {
+                console.error('Failed to fetch resource:', error.response?.data || error.message);
+            }
+        };
+
+        fetchData();
+    }, []);
+
+    return (
+        <div>
+            <h2>Protected Resource</h2>
+            <p>{data}</p>
+        </div>
+    );
+}
+
+export default ProtectedResource;
+
+🎯 8. 최종 요약
+	1.	✅ OAuth2 + Test Account 통합 로그인 지원
+	2.	✅ createBrowserRouter로 명확한 라우팅
+	3.	✅ useEffect로 Redirect 처리
+	4.	✅ Access Token 관리 및 API 요청 지원
+
+이제 createBrowserRouter와 함께 OAuth2 + Test Account 통합 인증이 완벽하게 설정되었습니다! 🚀🔑
+
+
+
+
+
+
 🔑 React: OAuth2 + Test Account 통합 로그인 예제
 
 📚 1. 목표
