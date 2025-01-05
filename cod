@@ -1,3 +1,253 @@
+🚀 Access Code 기반 OAuth 2.0 Flow에서 Access Token 만료 처리 (Refresh Token 없이)
+
+📚 1. 목표
+	1.	Refresh Token 없이 Access Token이 만료된 경우, 사용자는 Access Code Flow를 통해 새 Access Token을 받아야 합니다.
+	2.	Access Token 만료 시 클라이언트가 Access Code를 다시 요청하도록 유도합니다.
+	3.	백엔드와 프론트엔드가 올바르게 Access Token 만료를 감지하고 처리합니다.
+
+⚙️ 2. Access Code Flow 요약
+	1.	사용자는 Authorization Server로 리디렉션됩니다.
+	2.	사용자 인증 후 Access Code가 발급됩니다.
+	3.	클라이언트는 Access Code를 백엔드로 전달합니다.
+	4.	백엔드는 Access Code를 사용해 Access Token을 발급받습니다.
+	5.	Access Token이 만료되면 사용자는 다시 Access Code를 요청해야 합니다.
+
+🛠️ 3. 백엔드 처리
+
+✅ 3.1 JwtAuthenticationFilter 수정
+
+📍 JwtAuthenticationFilter.java
+
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import javax.servlet.FilterChain;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    private final TokenValidator tokenValidator;
+
+    public JwtAuthenticationFilter(TokenValidator tokenValidator) {
+        this.tokenValidator = tokenValidator;
+    }
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+            throws ServletException, IOException {
+
+        String accessToken = extractTokenFromRequest(request);
+
+        if (accessToken != null) {
+            try {
+                if (!tokenValidator.validateToken(accessToken)) {
+                    throw new RuntimeException("Token expired");
+                }
+
+                String username = tokenValidator.getUsernameFromToken(accessToken);
+                UsernamePasswordAuthenticationToken authentication = 
+                    new UsernamePasswordAuthenticationToken(username, null, tokenValidator.getAuthorities(accessToken));
+
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+            } catch (Exception e) {
+                // ✅ 토큰 만료 시 401 반환 및 리디렉션 유도
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.getWriter().write("{\"error\":\"TOKEN_EXPIRED\", \"redirect_uri\":\"/oauth/authorize\"}");
+                return;
+            }
+        }
+
+        filterChain.doFilter(request, response);
+    }
+
+    private String extractTokenFromRequest(HttpServletRequest request) {
+        String bearerToken = request.getHeader("Authorization");
+        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
+            return bearerToken.substring(7);
+        }
+        return null;
+    }
+}
+
+🔑 설명
+	1.	Access Token 검증
+	•	validateToken 메서드를 통해 토큰 유효성 확인.
+	2.	토큰 만료 감지
+	•	토큰이 만료되면 401 Unauthorized 상태 코드 반환.
+	•	JSON 응답으로 redirect_uri를 전달해 프론트엔드가 Access Code 요청을 유도할 수 있게 함.
+
+✅ 3.2 AuthController
+
+📍 AuthController.java
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseCookie;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.util.*;
+import java.util.stream.Collectors;
+
+@Controller
+public class AuthController {
+
+    @Autowired
+    private OAuth2TokenService oAuth2TokenService;
+
+    @Autowired
+    private TokenValidator tokenValidator;
+
+    @GetMapping("/handle_redirect")
+    public void handleOAuthCallback(
+            @RequestParam String code,
+            @RequestParam(required = false) String state,
+            HttpServletResponse response
+    ) throws IOException {
+        try {
+            if (state == null || !isValidState(state)) {
+                response.sendRedirect("/error?message=Invalid state parameter");
+                return;
+            }
+
+            // Access Code → Access Token 교환
+            Map<String, String> tokens = oAuth2TokenService.exchangeAuthorizationCode(code);
+            String accessToken = tokens.get("access_token");
+            String username = tokenValidator.getUsernameFromToken(accessToken);
+            Date expiration = tokenValidator.getExpirationDateFromToken(accessToken);
+
+            // SecurityContext 저장
+            List<String> roles = tokenValidator.getRolesFromToken(accessToken);
+            List<GrantedAuthority> authorities = roles.stream()
+                    .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+                    .collect(Collectors.toList());
+
+            UsernamePasswordAuthenticationToken authentication =
+                    new UsernamePasswordAuthenticationToken(username, null, authorities);
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+
+            // HttpOnly 쿠키에 저장
+            ResponseCookie accessTokenCookie = ResponseCookie.from("access_token", accessToken)
+                    .httpOnly(true)
+                    .secure(true)
+                    .path("/")
+                    .maxAge((expiration.getTime() - System.currentTimeMillis()) / 1000)
+                    .sameSite("Strict")
+                    .build();
+
+            response.addHeader("Set-Cookie", accessTokenCookie.toString());
+            response.sendRedirect("/ui");
+        } catch (Exception e) {
+            response.sendRedirect("/error?message=Failed to handle OAuth2 callback");
+        }
+    }
+
+    private boolean isValidState(String state) {
+        return "expected_state_value".equals(state);
+    }
+}
+
+⚛️ 4. 프론트엔드 처리 (React)
+
+✅ 4.1 Axios Interceptor
+
+📍 AuthService.js
+
+import axios from 'axios';
+
+axios.defaults.withCredentials = true;
+
+// Axios 인터셉터
+axios.interceptors.response.use(
+    response => response,
+    error => {
+        if (error.response && error.response.status === 401) {
+            const redirectUri = error.response.data?.redirect_uri || '/login';
+            console.warn('Token expired, redirecting to re-authenticate...');
+            window.location.href = redirectUri;
+        }
+        return Promise.reject(error);
+    }
+);
+
+/**
+ * API 호출 예시
+ */
+export const fetchProtectedData = async () => {
+    try {
+        const response = await axios.get('/api/protected');
+        return response.data;
+    } catch (error) {
+        console.error('Failed to fetch protected data:', error);
+        throw error;
+    }
+};
+
+🔑 설명
+	1.	401 Unauthorized 감지
+	•	만료된 Access Token이 감지되면 redirect_uri로 이동.
+	2.	Access Code Flow 재시작
+	•	사용자는 /oauth/authorize로 리디렉션되어 Access Code를 다시 받습니다.
+
+✅ 4.2 OAuthCallback.js
+
+📍 OAuthCallback.js
+
+import React, { useEffect } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+
+function OAuthCallback() {
+    const [searchParams] = useSearchParams();
+    const navigate = useNavigate();
+
+    useEffect(() => {
+        const code = searchParams.get('code');
+        if (code) {
+            axios.get(`/handle_redirect?code=${code}`)
+                .then(() => {
+                    navigate('/ui');
+                })
+                .catch(() => {
+                    navigate('/error');
+                });
+        } else {
+            navigate('/error');
+        }
+    }, [navigate, searchParams]);
+
+    return <div>Authenticating...</div>;
+}
+
+✅ 5. 흐름 요약
+	1.	Access Token 만료 → 401 Unauthorized
+	2.	프론트엔드 Interceptor가 리다이렉션 유도
+	3.	사용자 /oauth/authorize로 이동 → Access Code 발급
+	4.	Access Code → Access Token 교환
+	5.	새 Access Token으로 보호된 리소스 접근
+
+🎯 6. 최종 정리
+
+✅ Access Token 만료 감지 및 리디렉션
+✅ Access Code Flow 재시작
+✅ 보안 및 사용자 경험 개선
+
+이제 Refresh Token 없이 Access Token 만료를 안전하고 효율적으로 처리할 수 있습니다! 🚀🔑✨
+
+
+
+
+
+
 🚀 React + Spring Boot OAuth2 + Test Account 통합 예제
 
 📚 1. 프로젝트 구조
