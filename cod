@@ -1,3 +1,169 @@
+🚀 Access Token 만료와 쿠키, 401 에러의 관계
+
+📚 1. Access Token 만료와 쿠키의 역할
+	•	Access Token 만료 시간은 JWT의 exp(Expiration) 클레임과 쿠키의 maxAge에 의해 정의됩니다.
+	•	쿠키 만료와 Access Token 만료는 별개이지만 상호작용합니다.
+
+✅ 2. 흐름 설명
+
+📍 1. Access Token과 쿠키 만료 시간 설정
+	•	Access Token의 만료 시간(exp)은 JWT 내부에 설정됩니다.
+	•	쿠키(HttpOnly)에도 maxAge 또는 Expires 속성으로 만료 시간이 설정됩니다.
+
+예시:
+
+ResponseCookie accessTokenCookie = ResponseCookie.from("access_token", accessToken)
+        .httpOnly(true)
+        .secure(true)
+        .path("/")
+        .maxAge((expiration.getTime() - System.currentTimeMillis()) / 1000) // JWT 만료 시간과 동일
+        .sameSite("Strict")
+        .build();
+
+📍 2. 클라이언트 요청 흐름
+	1.	사용자는 Access Token을 HttpOnly 쿠키에 저장합니다.
+	2.	HTTP 요청 시 브라우저는 쿠키에 포함된 Access Token을 서버로 전송합니다.
+	3.	서버는 JwtAuthenticationFilter에서 Access Token을 검증합니다.
+
+✅ 3. Access Token 검증 과정
+
+📍 JwtAuthenticationFilter.java
+
+@Override
+protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+        throws ServletException, IOException {
+
+    String accessToken = extractTokenFromCookie(request);
+
+    if (accessToken != null) {
+        try {
+            if (!tokenValidator.validateToken(accessToken)) {
+                throw new RuntimeException("Token expired");
+            }
+
+            String username = tokenValidator.getUsernameFromToken(accessToken);
+            UsernamePasswordAuthenticationToken authentication =
+                new UsernamePasswordAuthenticationToken(username, null, tokenValidator.getAuthorities(accessToken));
+
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+        } catch (Exception e) {
+            // ✅ 만료된 경우 401 반환
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.getWriter().write("{\"error\":\"TOKEN_EXPIRED\"}");
+            return;
+        }
+    } else {
+        // ✅ 쿠키에 Access Token이 없는 경우
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.getWriter().write("{\"error\":\"TOKEN_MISSING\"}");
+        return;
+    }
+
+    filterChain.doFilter(request, response);
+}
+
+private String extractTokenFromCookie(HttpServletRequest request) {
+    if (request.getCookies() != null) {
+        for (Cookie cookie : request.getCookies()) {
+            if ("access_token".equals(cookie.getName())) {
+                return cookie.getValue();
+            }
+        }
+    }
+    return null;
+}
+
+✅ 4. 시나리오별 동작 방식
+
+상황	Access Token 상태	쿠키 상태	결과
+1. 유효한 토큰	만료되지 않음	쿠키 존재	✅ 정상 처리
+2. 만료된 토큰	만료됨	쿠키 존재	❌ 401 Unauthorized 반환
+3. 쿠키 만료	-	쿠키 없음	❌ 401 Unauthorized 반환 (TOKEN_MISSING)
+4. 토큰 변조	유효하지 않음	쿠키 존재	❌ 401 Unauthorized 반환
+
+🔑 설명
+	1.	만료된 토큰
+	•	토큰은 쿠키에 남아있지만 exp가 지나면 validateToken에서 만료로 판단하고 401 에러를 반환합니다.
+	2.	쿠키가 만료됨
+	•	브라우저가 만료된 쿠키를 자동으로 삭제합니다.
+	•	서버에 Access Token이 전송되지 않아서 extractTokenFromCookie가 null을 반환합니다.
+	•	서버는 401 Unauthorized 오류를 반환합니다.
+
+✅ 5. 쿠키와 Access Token 시간 일치
+
+📍 Access Token과 쿠키 만료 시간 동기화
+	•	**Access Token 만료 시간(exp)**과 **쿠키 만료 시간(maxAge)**을 일치시켜야 합니다.
+	•	설정 예시:
+
+Date expiration = tokenValidator.getExpirationDateFromToken(accessToken);
+
+ResponseCookie accessTokenCookie = ResponseCookie.from("access_token", accessToken)
+        .httpOnly(true)
+        .secure(true)
+        .path("/")
+        .maxAge((expiration.getTime() - System.currentTimeMillis()) / 1000)
+        .sameSite("Strict")
+        .build();
+
+🔑 설명
+	•	maxAge는 JWT의 만료 시간과 일치해야 합니다.
+	•	일치하지 않으면 JWT는 유효하지만 쿠키가 삭제되어 요청할 수 없는 문제가 발생할 수 있습니다.
+
+✅ 6. 프론트엔드 처리 (React)
+
+📍 Axios Interceptor로 401 에러 처리
+
+import axios from 'axios';
+
+axios.defaults.withCredentials = true;
+
+// Axios Interceptor
+axios.interceptors.response.use(
+    response => response,
+    error => {
+        if (error.response && error.response.status === 401) {
+            if (error.response.data.error === "TOKEN_MISSING") {
+                console.warn('Token missing, redirecting to login...');
+            } else if (error.response.data.error === "TOKEN_EXPIRED") {
+                console.warn('Token expired, redirecting to re-authenticate...');
+            }
+            window.location.href = '/oauth/authorize';
+        }
+        return Promise.reject(error);
+    }
+);
+
+✅ 7. 최종 흐름
+	1.	Access Token 유효:
+	•	요청 처리 정상 작동.
+	2.	Access Token 만료 (exp 지남):
+	•	401 Unauthorized와 TOKEN_EXPIRED 응답.
+	•	React가 /oauth/authorize로 리다이렉션.
+	3.	쿠키 만료:
+	•	Access Token이 서버로 전달되지 않음.
+	•	401 Unauthorized와 TOKEN_MISSING 응답.
+	•	React가 /oauth/authorize로 리다이렉션.
+	4.	다시 Access Code를 요청:
+	•	사용자는 /oauth/authorize에서 Access Code를 받아 Access Token을 재발급.
+
+✅ 8. 최종 정리
+	•	Access Token 만료는 JWT의 exp 클레임으로 확인합니다.
+	•	브라우저 쿠키 만료는 maxAge나 Expires 속성으로 확인합니다.
+	•	Access Token 만료: 401 Unauthorized와 TOKEN_EXPIRED 반환.
+	•	쿠키 만료: 401 Unauthorized와 TOKEN_MISSING 반환.
+	•	프론트엔드에서 401 응답을 감지해 /oauth/authorize로 리디렉션.
+
+이제 Access Token과 쿠키 만료를 안전하게 다루고 재인증을 유도할 수 있습니다! 🚀🔐✨
+
+
+
+
+
+
+
+
+
+
 🚀 Access Code 기반 OAuth 2.0 Flow에서 Access Token 만료 처리 (Refresh Token 없이)
 
 📚 1. 목표
