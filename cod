@@ -1,3 +1,85 @@
+package com.example.security.util;
+
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.SignatureException;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+import java.util.Date;
+import java.util.List;
+
+@Component
+public class TokenValidator {
+
+    @Value("${jwt.secret}")
+    private String secretKey;
+
+    /**
+     * 토큰의 유효성을 검증합니다.
+     */
+    public boolean validateToken(String token) {
+        try {
+            Claims claims = getClaimsFromToken(token);
+            return claims.getExpiration().after(new Date());
+        } catch (ExpiredJwtException e) {
+            System.out.println("Token has expired: " + e.getMessage());
+        } catch (SignatureException e) {
+            System.out.println("Invalid token signature: " + e.getMessage());
+        } catch (Exception e) {
+            System.out.println("Token validation failed: " + e.getMessage());
+        }
+        return false;
+    }
+
+    /**
+     * 토큰에서 사용자 이름을 추출합니다.
+     */
+    public String getUsernameFromToken(String token) {
+        Claims claims = getClaimsFromToken(token);
+        return claims.getSubject(); // 'sub' 클레임에서 사용자 이름 반환
+    }
+
+    /**
+     * 토큰에서 역할(Roles)을 추출합니다.
+     */
+    public List<String> getRolesFromToken(String token) {
+        Claims claims = getClaimsFromToken(token);
+        return claims.get("roles", List.class); // 'roles' 클레임에서 역할 목록 반환
+    }
+
+    /**
+     * 토큰에서 만료 시간을 추출합니다.
+     */
+    public Date getExpirationDateFromToken(String token) {
+        Claims claims = getClaimsFromToken(token);
+        return claims.getExpiration();
+    }
+
+    /**
+     * 토큰에서 Claims 객체를 가져옵니다.
+     */
+    private Claims getClaimsFromToken(String token) {
+        try {
+            return Jwts.parser()
+                    .setSigningKey(secretKey) // 서명 키 검증
+                    .parseClaimsJws(token) // 토큰 파싱
+                    .getBody();
+        } catch (ExpiredJwtException e) {
+            throw new RuntimeException("Token has expired", e);
+        } catch (SignatureException e) {
+            throw new RuntimeException("Invalid token signature", e);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to parse token", e);
+        }
+    }
+}
+
+
+
+
 🚀 Access Token 만료와 쿠키, 401 에러의 관계
 
 📚 1. Access Token 만료와 쿠키의 역할
