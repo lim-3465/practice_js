@@ -1,3 +1,92 @@
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.*;
+
+class DacLogFileProcessorTest {
+
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
+    private DacLogFileProcessor dacLogFileProcessor;
+    private List<DacReceivedFile> receivedFileList;
+    private List<DacExpectedFile> expectedFileList;
+
+    @BeforeEach
+    void setUp() {
+        dacLogFileProcessor = new DacLogFileProcessor(); // 대상 클래스 초기화
+        receivedFileList = new ArrayList<>();
+        expectedFileList = new ArrayList<>();
+    }
+
+    @Test
+    void testProcessValidMatchingFiles() {
+        // Given: 예상 파일과 실제 수신된 파일을 준비
+        DacExpectedFile expectedFile = new DacExpectedFile("App1", "Type1", "2025-01-24", "FileName1");
+        DacReceivedFile receivedFile = new DacReceivedFile("App1", "Type1", "2025-01-24", "FileName1", 100L);
+
+        expectedFileList.add(expectedFile);
+        receivedFileList.add(receivedFile);
+
+        // When: 매칭 로직 실행
+        dacLogFileProcessor.processFiles(receivedFileList, expectedFileList);
+
+        // Then: 유효 파일 리스트에 예상된 값이 포함되는지 확인
+        assertEquals(1, dacLogFileProcessor.getValidReceivedLogFiles().size());
+        assertEquals(receivedFile, dacLogFileProcessor.getValidReceivedLogFiles().get(0));
+
+        assertEquals(1, dacLogFileProcessor.getValidExpectedFiles().size());
+        assertEquals(expectedFile, dacLogFileProcessor.getValidExpectedFiles().get(0));
+    }
+
+    @Test
+    void testProcessInvalidFiles() {
+        // Given: 일치하지 않는 파일을 준비
+        DacExpectedFile expectedFile = new DacExpectedFile("App2", "Type2", "2025-01-25", "FileName2");
+        DacReceivedFile receivedFile = new DacReceivedFile("App1", "Type1", "2025-01-24", "FileName1", 100L);
+
+        expectedFileList.add(expectedFile);
+        receivedFileList.add(receivedFile);
+
+        // When: 매칭 로직 실행
+        dacLogFileProcessor.processFiles(receivedFileList, expectedFileList);
+
+        // Then: 유효 파일 리스트에 값이 없음을 확인
+        assertEquals(0, dacLogFileProcessor.getValidReceivedLogFiles().size());
+        assertEquals(0, dacLogFileProcessor.getValidExpectedFiles().size());
+    }
+
+    @Test
+    void testProcessFilesWithDateRange() {
+        // Given: 날짜 범위 내에서 일치하는 파일을 준비
+        DacExpectedFile expectedFile = new DacExpectedFile("App3", "Type3", "2025-01-24", "FileName3");
+        DacReceivedFile receivedFile = new DacReceivedFile("App3", "Type3", "2025-01-23", "FileName3", 150L);
+
+        expectedFileList.add(expectedFile);
+        receivedFileList.add(receivedFile);
+
+        // When: 매칭 로직 실행
+        dacLogFileProcessor.processFiles(receivedFileList, expectedFileList);
+
+        // Then: 유효 파일 리스트에 예상된 값이 포함되는지 확인
+        assertEquals(1, dacLogFileProcessor.getValidReceivedLogFiles().size());
+        assertEquals(receivedFile, dacLogFileProcessor.getValidReceivedLogFiles().get(0));
+
+        assertEquals(1, dacLogFileProcessor.getValidExpectedFiles().size());
+        assertEquals(expectedFile, dacLogFileProcessor.getValidExpectedFiles().get(0));
+    }
+}
+
+
+
+
+
+
 import static org.mockito.Mockito.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
