@@ -1,4 +1,36 @@
 
+@Test
+void testGetUserProfile_withValidToken() {
+    // Given
+    Cookie accessTokenCookie = new Cookie("access_token", "validToken");
+    Cookie[] cookies = {accessTokenCookie};
+    when(request.getCookies()).thenReturn(cookies);
+
+    Claims claims = mock(Claims.class);
+    when(claims.get("jpmcIdentifier", String.class)).thenReturn("123456");
+    when(claims.get("roles", List.class)).thenReturn(List.of("ADMIN", "USER"));
+    when(claims.get("displayName", String.class)).thenReturn("John Doe");
+    when(claims.getExpiration()).thenReturn(new Date(System.currentTimeMillis() + 60000));
+
+    Jws<Claims> claimsJws = mock(Jws.class);
+    when(claimsJws.getBody()).thenReturn(claims);
+
+    when(jwtValidator.validateToken(anyString(), anyString(), anyString(), anyString()))
+        .thenReturn(claimsJws);
+
+    // When
+    ResponseEntity<Map<String, Object>> response = yourController.getUserProfile(request);
+
+    // Then
+    assertNotNull(response);
+    assertEquals(200, response.getStatusCodeValue());
+    Map<String, Object> userProfile = response.getBody();
+    assertNotNull(userProfile);
+    assertEquals("123456", userProfile.get("jpmcIdentifier"));
+    assertEquals(List.of("ADMIN", "USER"), userProfile.get("roles"));
+}
+
+
 package com.example.test;
 
 import com.example.controller.YourController; // 실제 컨트롤러 경로
