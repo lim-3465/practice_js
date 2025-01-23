@@ -1,3 +1,109 @@
+import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.example.util.JwtValidator;
+import com.example.config.IdAnywhereProperties;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jws;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mock;
+import org.mockito.InjectMocks;
+import org.mockito.MockitoAnnotations;
+import org.springframework.http.ResponseEntity;
+
+import javax.servlet.http.Cookie;
+import javax.servlet.http.HttpServletRequest;
+import java.util.List;
+import java.util.Map;
+
+class UserProfileControllerTest {
+
+    @Mock
+    private JwtValidator jwtValidator;
+
+    @Mock
+    private IdAnywhereProperties idAnywhereProperties;
+
+    @Mock
+    private HttpServletRequest request;
+
+    @InjectMocks
+    private UserProfileController userProfileController;
+
+    @BeforeEach
+    void setUp() {
+        MockitoAnnotations.openMocks(this);
+
+        // Mock IdAnywhereProperties
+        when(idAnywhereProperties.getIdBaseUri()).thenReturn("https://example.com");
+        when(idAnywhereProperties.getIdResourceId()).thenReturn("resource-id");
+        when(idAnywhereProperties.getIdTrustUrl()).thenReturn("https://trust.example.com");
+    }
+
+    @Test
+    void shouldReturnUserProfileWhenAccessTokenIsValid() {
+        // Mock HttpServletRequest with cookies
+        Cookie accessTokenCookie = new Cookie("access_token", "valid-token");
+        when(request.getCookies()).thenReturn(new Cookie[]{accessTokenCookie});
+
+        // Mock JwtValidator behavior
+        Claims claims = mock(Claims.class);
+        when(claims.get("jpmcIdentifier", String.class)).thenReturn("testUser");
+        when(claims.get("roles", List.class)).thenReturn(List.of("ROLE_USER", "ROLE_ADMIN"));
+        when(claims.get("displayName", String.class)).thenReturn("Test User");
+        when(claims.getExpiration()).thenReturn(new java.util.Date(System.currentTimeMillis() + 3600000));
+
+        Jws<Claims> claimsJws = mock(Jws.class);
+        when(claimsJws.getBody()).thenReturn(claims);
+        when(jwtValidator.validateToken("valid-token", "https://example.com", "resource-id", "https://trust.example.com"))
+                .thenReturn(claimsJws);
+
+        // Execute the controller method
+        ResponseEntity<Map<String, Object>> response = userProfileController.getUserProfile(request);
+
+        // Verify the response
+        assertThat(response.getStatusCodeValue()).isEqualTo(200);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().get("jpmcIdentifier")).isEqualTo("testUser");
+        assertThat(response.getBody().get("roles")).isEqualTo(List.of("ROLE_USER", "ROLE_ADMIN"));
+        assertThat(response.getBody().get("displayName")).isEqualTo("Test User");
+    }
+
+    @Test
+    void shouldReturnUnauthorizedWhenNoCookiesPresent() {
+        // Mock HttpServletRequest with no cookies
+        when(request.getCookies()).thenReturn(null);
+
+        // Execute the controller method
+        ResponseEntity<Map<String, Object>> response = userProfileController.getUserProfile(request);
+
+        // Verify the response
+        assertThat(response.getStatusCodeValue()).isEqualTo(401);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().get("error")).isEqualTo("No cookies found");
+    }
+
+    @Test
+    void shouldReturnUnauthorizedWhenInvalidAccessToken() {
+        // Mock HttpServletRequest with invalid token cookie
+        Cookie accessTokenCookie = new Cookie("access_token", "invalid-token");
+        when(request.getCookies()).thenReturn(new Cookie[]{accessTokenCookie});
+
+        // Mock JwtValidator to throw an exception
+        when(jwtValidator.validateToken(anyString(), anyString(), anyString(), anyString()))
+                .thenThrow(new RuntimeException("Invalid token"));
+
+        // Execute the controller method
+        ResponseEntity<Map<String, Object>> response = userProfileController.getUserProfile(request);
+
+        // Verify the response
+        assertThat(response.getStatusCodeValue()).isEqualTo(401);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().get("error")).isEqualTo("Invalid token: Invalid token");
+    }
+}
+
 
 @Test
 void testGetUserProfile_withValidToken() {
