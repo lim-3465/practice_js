@@ -1,3 +1,129 @@
+
+package com.example.test;
+
+import com.example.controller.YourController; // 실제 컨트롤러 경로
+import com.example.util.JWTValidator;
+import com.example.util.JWTTokenUtil;
+import com.example.config.IdAnywhereProperties;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+import org.springframework.http.ResponseEntity;
+
+import javax.servlet.http.Cookie;
+import javax.servlet.http.HttpServletRequest;
+
+import java.util.List;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+class YourControllerTest {
+
+    @Mock
+    private JWTValidator jwtValidator;
+
+    @Mock
+    private JWTTokenUtil jwtTokenUtil;
+
+    @Mock
+    private IdAnywhereProperties idAnywhereProperties;
+
+    @Mock
+    private HttpServletRequest request;
+
+    @InjectMocks
+    private YourController yourController;
+
+    @BeforeEach
+    void setUp() {
+        MockitoAnnotations.openMocks(this);
+    }
+
+    @Test
+    void testGetUserProfile_withAccessToken() {
+        // Given
+        Cookie accessTokenCookie = new Cookie("access_token", "testAccessToken");
+        Cookie[] cookies = {accessTokenCookie};
+        when(request.getCookies()).thenReturn(cookies);
+
+        // Mock JWTValidator and JWTTokenUtil
+        String testAccessToken = "testAccessToken";
+        String idBaseUri = "https://example.com";
+        String idResource = "testResource";
+        String idTrustUrl = "testTrustUrl";
+
+        when(idAnywhereProperties.getIdBaseUri()).thenReturn(idBaseUri);
+        when(idAnywhereProperties.getIdResourceId()).thenReturn(idResource);
+        when(idAnywhereProperties.getIdTrustUrl()).thenReturn(idTrustUrl);
+
+        Map<String, Object> claims = Map.of(
+                "jpmcIdentifier", "123456",
+                "roles", List.of("ADMIN", "USER"),
+                "displayName", "John Doe"
+        );
+        when(jwtValidator.validateToken(testAccessToken, idBaseUri, idResource, idTrustUrl))
+                .thenReturn(claims);
+        when(jwtTokenUtil.getExpiration(claims)).thenReturn(System.currentTimeMillis() + 10000L);
+        when(jwtTokenUtil.getDisplayNameFromClaims(claims)).thenReturn("John Doe");
+        when(jwtTokenUtil.getJpmcIdentifierFromClaims(claims)).thenReturn("123456");
+        when(jwtTokenUtil.getRolesFromClaims(claims)).thenReturn(List.of("ADMIN", "USER"));
+
+        // When
+        ResponseEntity<Map<String, String>> response = yourController.getUserProfile(request);
+
+        // Then
+        assertNotNull(response);
+        assertEquals(200, response.getStatusCodeValue());
+        Map<String, String> userProfile = response.getBody();
+        assertNotNull(userProfile);
+        assertEquals("123456", userProfile.get("jpmcIdentifier"));
+        assertEquals("John Doe", userProfile.get("displayName"));
+    }
+
+    @Test
+    void testGetUserProfile_withTestToken() {
+        // Given
+        Cookie testTokenCookie = new Cookie("test_token", "testUser:TEST_ROLE");
+        Cookie[] cookies = {testTokenCookie};
+        when(request.getCookies()).thenReturn(cookies);
+
+        // When
+        ResponseEntity<Map<String, String>> response = yourController.getUserProfile(request);
+
+        // Then
+        assertNotNull(response);
+        assertEquals(200, response.getStatusCodeValue());
+        Map<String, String> userProfile = response.getBody();
+        assertNotNull(userProfile);
+        assertEquals("testUser", userProfile.get("jpmcIdentifier"));
+        assertEquals("TEST_ROLE", userProfile.get("roles"));
+    }
+
+    @Test
+    void testGetUserProfile_noCookies() {
+        // Given
+        when(request.getCookies()).thenReturn(null);
+
+        // When
+        ResponseEntity<Map<String, String>> response = yourController.getUserProfile(request);
+
+        // Then
+        assertNotNull(response);
+        assertEquals(200, response.getStatusCodeValue());
+        assertNull(response.getBody());
+    }
+}
+
+
+
+
+
+
+
 🚀 Access Token 만료 시 재로그인 페이지로 리다이렉트 처리
 
 📚 1. 목표
