@@ -1,3 +1,28 @@
+<select id="selectUserDetailWithValidity" resultType="com.example.YourResultDto">
+  SELECT 
+      a.user_sid,
+      b.work_location_country,
+      b.job_title,
+      b.updated_date,
+      CASE 
+          WHEN b.work_location_country IN ('KOREA', 'USA', 'INDIA') THEN 'VALID'
+          ELSE 'INVALID'
+      END AS validity
+  FROM TABLE_A a
+  JOIN TABLE_B b ON a.user_sid = b.user_sid
+  WHERE b.updated_date = (
+      SELECT MAX(b2.updated_date)
+      FROM TABLE_B b2
+      WHERE b2.user_sid = b.user_sid
+  )
+</select>
+
+
+
+
+
+
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
