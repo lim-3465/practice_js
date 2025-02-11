@@ -1,3 +1,34 @@
+<insert id="insertObjectsIfNotExists" parameterType="java.util.List">
+  INSERT ALL
+  <foreach collection="list" item="item" separator=" ">
+    INTO YOUR_TABLE (col1, col2, col3, col4, col5, col6)
+    SELECT 
+      #{item.field1}, 
+      #{item.field2}, 
+      #{item.field3}, 
+      #{item.field4}, 
+      #{item.field5}, 
+      #{item.field6}
+    FROM dual
+    WHERE NOT EXISTS (
+      SELECT 1 FROM YOUR_TABLE 
+      WHERE col1 = #{item.field1}
+        AND col2 = #{item.field2}
+        AND col3 = #{item.field3}
+        AND col4 = #{item.field4}
+        AND col5 = #{item.field5}
+        AND col6 = #{item.field6}
+    )
+  </foreach>
+  SELECT * FROM dual
+</insert>
+
+
+
+
+
+
+
 <select id="selectUserDetailWithValidity" resultType="com.example.YourResultDto">
   SELECT 
       a.user_sid,
