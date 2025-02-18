@@ -1,3 +1,84 @@
+Spring Boot와 MyBatis를 함께 사용할 때, Oracle 데이터베이스에서 발생하는 에러는 보통 JDBC에서 발생하는 SQLException이 Spring의 예외 변환(Exception Translation) 메커니즘에 의해 DataAccessException 계열의 예외로 전환됩니다. 만약 이러한 에러가 발생했을 때 별도의 커스텀 예외를 throw하거나 로깅, 추가 처리를 하고 싶다면 아래와 같은 방법을 고려할 수 있습니다.
+
+1. 서비스 레이어에서 try-catch를 이용한 커스텀 예외 처리
+
+Mapper나 Repository 호출 시 발생하는 예외를 서비스 레이어에서 잡아서 커스텀 예외를 던지도록 할 수 있습니다. 예를 들어:
+
+@Service
+public class UserService {
+
+    private final UserMapper userMapper;
+
+    public UserService(UserMapper userMapper) {
+        this.userMapper = userMapper;
+    }
+
+    public UserDTO getUserById(Long id) {
+        try {
+            return userMapper.findUserById(id);
+        } catch (DataAccessException dae) {
+            // Oracle 관련 예외가 DataAccessException 하위 클래스로 변환되어 전달됨
+            // 추가 로깅, 알림 등 처리를 한 후 커스텀 예외 던지기
+            throw new CustomDatabaseException("오라클 DB 에러 발생: " + dae.getMessage(), dae);
+        }
+    }
+}
+
+그리고 커스텀 예외 클래스를 정의합니다:
+
+public class CustomDatabaseException extends RuntimeException {
+    public CustomDatabaseException(String message, Throwable cause) {
+        super(message, cause);
+    }
+}
+
+이렇게 하면, Oracle 관련 에러가 발생하면 DataAccessException을 잡아 커스텀 예외를 던질 수 있습니다.
+
+2. 전역 예외 처리 (ControllerAdvice) 이용
+
+만약 서비스 레이어에서 따로 처리하지 않고, 전역에서 처리하고 싶다면, @ControllerAdvice를 이용하여 예외를 잡고 커스텀 응답을 반환할 수 있습니다.
+
+import org.springframework.dao.DataAccessException;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
+
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+
+    @ExceptionHandler(DataAccessException.class)
+    public void handleDataAccessException(DataAccessException ex) {
+        // 여기서 로그를 남기거나 추가 처리를 하고, 원하는 HTTP 상태와 함께 예외를 던질 수 있음
+        throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "DB 처리 중 에러 발생", ex);
+    }
+    
+    // 또는 커스텀 예외를 처리할 수 있음
+    @ExceptionHandler(CustomDatabaseException.class)
+    public void handleCustomDatabaseException(CustomDatabaseException ex) {
+        throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage(), ex);
+    }
+}
+
+이 방식은 Controller에서 별도의 try-catch 없이 발생한 예외를 전역에서 잡아 처리할 수 있게 해줍니다.
+
+3. MyBatis 설정에서 커스텀 예외 변환 사용 (옵션)
+
+MyBatis-Spring은 기본적으로 SQLException을 DataAccessException으로 변환합니다. 만약 커스텀 ExceptionTranslator를 사용하고 싶다면, 별도의 설정을 추가할 수 있지만, 일반적으로는 위 두 가지 방법(서비스 레이어 또는 ControllerAdvice)으로 충분합니다.
+
+정리
+	•	Spring의 Exception Translation:
+Oracle에서 발생한 SQLException은 MyBatis-Spring 통합 시 DataAccessException으로 변환됩니다.
+	•	서비스 레이어에서 처리:
+Mapper 호출 시 try-catch로 DataAccessException을 잡아 커스텀 예외(CustomDatabaseException 등)를 던지거나 추가 처리를 할 수 있습니다.
+	•	전역 예외 처리:
+@ControllerAdvice를 사용하여 전역에서 DataAccessException 또는 커스텀 예외를 잡아 원하는 응답으로 처리할 수 있습니다.
+
+이와 같이 구현하면, Oracle 관련 에러가 발생할 때 원하는 방식으로 예외를 throw하고, 로그를 남기거나 클라이언트에 적절한 에러 메시지를 전달할 수 있습니다.
+
+
+
+
 
 Spring Security를 사용하는 경우, 403(접근 거부) 상황에 대해 기본적으로 HTTP 403 상태 코드와 에러 페이지를 반환하지만, 이를 커스터마이징하여 특정 URL로 리다이렉트하도록 할 수 있습니다. 이를 위해 커스텀 AccessDeniedHandler를 구현하고, Security 설정에 등록하면 됩니다.
 
