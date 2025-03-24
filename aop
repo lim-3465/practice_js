@@ -1,3 +1,41 @@
+def simulate_mq_819_to_970(text):
+    try:
+        # MQ에 819로 인코딩된 것처럼 (ISO-8859-1)
+        encoded = text.encode('iso-8859-1')  
+        # MQ에서 970으로 꺼내는 것처럼 (EUC-KR로 디코딩)
+        decoded = encoded.decode('euc-kr')
+        return True, decoded
+    except (UnicodeEncodeError, UnicodeDecodeError) as e:
+        return False, str(e)
+
+text = "Hello 안녕! @#✓♥"  # 한글 + 특수문자 포함
+ok, result = simulate_mq_819_to_970(text)
+
+if ok:
+    print("정상 변환됨:", result)
+else:
+    print("깨짐 발생:", result)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Spring Boot와 MyBatis를 함께 사용할 때, Oracle 데이터베이스에서 발생하는 에러는 보통 JDBC에서 발생하는 SQLException이 Spring의 예외 변환(Exception Translation) 메커니즘에 의해 DataAccessException 계열의 예외로 전환됩니다. 만약 이러한 에러가 발생했을 때 별도의 커스텀 예외를 throw하거나 로깅, 추가 처리를 하고 싶다면 아래와 같은 방법을 고려할 수 있습니다.
 
 1. 서비스 레이어에서 try-catch를 이용한 커스텀 예외 처리
