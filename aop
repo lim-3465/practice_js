@@ -1,3 +1,66 @@
+def trim_to_max_bytes(text, max_bytes=20, encoding='utf-8'):
+    encoded = bytearray()
+    for ch in text:
+        ch_bytes = ch.encode(encoding)
+        if len(encoded) + len(ch_bytes) > max_bytes:
+            break
+        encoded.extend(ch_bytes)
+    return encoded.decode(encoding, errors='ignore')
+
+def find_unsupported_chars(text, from_enc='iso-8859-1', to_enc='euc-kr'):
+    unsupported = []
+    for ch in text:
+        try:
+            ch.encode(from_enc).decode(to_enc)
+        except Exception:
+            unsupported.append(ch)
+    return unsupported
+
+def simulate_mq_819_to_970(text):
+    # 1. 자르기
+    trimmed_text = trim_to_max_bytes(text, max_bytes=20, encoding='utf-8')
+    
+    # 2. 깨지는 문자 추출
+    bad_chars = find_unsupported_chars(trimmed_text)
+
+    try:
+        encoded = trimmed_text.encode('iso-8859-1')
+        decoded = encoded.decode('euc-kr')
+        return {
+            "success": True,
+            "input": trimmed_text,
+            "decoded": decoded,
+            "unsupported_chars": bad_chars
+        }
+    except (UnicodeEncodeError, UnicodeDecodeError) as e:
+        return {
+            "success": False,
+            "input": trimmed_text,
+            "error": str(e),
+            "unsupported_chars": bad_chars
+        }
+
+# 테스트 예시
+result = simulate_mq_819_to_970("안녕하세요 Hello! ✓☺")
+if result["success"]:
+    print("정상 디코딩됨:", result["decoded"])
+else:
+    print("디코딩 실패:", result["error"])
+print("자른 입력:", result["input"])
+print("깨지는 문자:", result["unsupported_chars"])
+
+
+
+
+
+
+
+
+
+
+
+
+
 def simulate_mq_819_to_970(text):
     try:
         # MQ에 819로 인코딩된 것처럼 (ISO-8859-1)
